@@ -45,8 +45,14 @@ data Graph :: [*] -> [*] -> [*] -> * where
   -- BackEdge :: Index d a -> Index d a -> MarkedGraph i d o
 
 
+data PortId
+ -- index in inputs list, and index of actual node
+ -- necessary when nodes have multiple of same input
+ = PortId Int Int
+ deriving (Show, Eq)
+
 data Status
- = Running [Int]
+ = Running [PortId]
  | Finished
  | NotStarted
  deriving Show
@@ -114,7 +120,7 @@ evalG g_ ins_
   go g ds os set
    = case fire1 g ds os set of
       Nothing
-       -> (os, all_finished ds)
+       -> (os, all_finished g set)
       Just (g', d', o', s')
        -> go g' d' o' s'
 
@@ -140,9 +146,10 @@ evalG g_ ins_
 
   fire1 (Out ox g) ds (VCons o os) set
    | trace ("Out") True
-   , not $ lookupWaiting ox set
+   , port <- PortId (natOfIx ox) (-1)
+   , not $ lookupWaiting port ox set
    , (Just val,_) <- takedrop1 ox ds
-   = Just (Out ox g, ds, VCons (o ++ [val]) os, insertIntoWaiting ox set)
+   = Just (Out ox g, ds, VCons (o ++ [val]) os, insertIntoWaiting port ox set)
    | otherwise
    = fmap (\(g', a,b,c) -> (Out ox g', a, VCons o b, c))
                $ fire1 g ds os set
@@ -158,7 +165,7 @@ evalG g_ ins_
                      NotStarted
                       -> Nothing
                      Running _
-                      | lookupWaiting (lookupIX ix ixs) set
+                      | lookupWaiting (portId ix ixs)(lookupIX ix ixs) set
                       , trace ("nothing to do") True
                       -> -- It's already waiting for new input from there, so cannot move
                          Nothing
@@ -166,7 +173,7 @@ evalG g_ ins_
                       , trace "pulling" True
                       , (val,_) <- takedrop1 (lookupIX ix ixs) ds
                       , f''     <- f' val
-                      , set'    <- insertIntoWaiting (lookupIX ix ixs) set
+                      , set'    <- insertIntoWaiting (portId ix ixs) (lookupIX ix ixs) set
                       -> Just (Trans ixs (Process s' f'') g, VCons op ds, os, OSCons swaiting smax set')
                      Finished
                       -> Just (Trans ixs (Process s' (f' Nothing)) g, VCons op ds, os, OSCons swaiting smax set)
@@ -190,7 +197,18 @@ evalG g_ ins_
       _
        -> down s f
 
-  all_finished _ = True
+  all_finished :: Graph i' d' o' -> OutSet d' -> Bool
+  all_finished Empty set
+   = True
+  all_finished (Inp g) (OSCons _ _ set)
+   = all_finished g set
+  all_finished (Out _ g) set
+   = all_finished g set
+  all_finished (Trans _ _ g) (OSCons Finished _ set)
+   = all_finished g set
+  -- Not finished
+  all_finished (Trans _ _ g) (OSCons _ _ set)
+   = False
 
   lookupIX :: Index to x -> Indices from to -> Index from x
   lookupIX Here (ICons here _)
@@ -198,17 +216,26 @@ evalG g_ ins_
   lookupIX (There ix) (ICons _ there)
    = lookupIX ix there
 
+  portId :: Index to x -> Indices from to -> PortId
+  portId ix ixs
+   = portId_go ix ixs 0
+  portId_go :: Index to x -> Indices from to -> Int -> PortId
+  portId_go Here (ICons here _) n
+   = PortId (natOfIx here) n
+  portId_go (There ix) (ICons _ there) n
+   = portId_go ix there (n+1)
+
   lookupOS :: Index xs x -> OutSet xs -> Status
   lookupOS Here (OSCons here _ _)
    = here
   lookupOS (There ix) (OSCons _ _ there)
    = lookupOS ix there
 
-  lookupWaiting :: Index xs x -> OutSet xs -> Bool
-  lookupWaiting ix os
-   = lookupWaiting_go (natOfIx ix) ix os
+  lookupWaiting :: PortId -> Index xs x -> OutSet xs -> Bool
+  lookupWaiting pi ix os
+   = lookupWaiting_go pi ix os
 
-  lookupWaiting_go :: Int -> Index xs x -> OutSet xs -> Bool
+  lookupWaiting_go :: PortId -> Index xs x -> OutSet xs -> Bool
   lookupWaiting_go ix Here (OSCons (Running sw) _ _)
    = elem ix sw
   lookupWaiting_go ix Here other
@@ -217,11 +244,11 @@ evalG g_ ins_
    = lookupWaiting_go ix there rest
 
 
-  insertIntoWaiting :: Index xs x -> OutSet xs -> OutSet xs
-  insertIntoWaiting ix os
-   = insertIntoWaiting_go (natOfIx ix) ix os
+  insertIntoWaiting :: PortId -> Index xs x -> OutSet xs -> OutSet xs
+  insertIntoWaiting pi ix os
+   = insertIntoWaiting_go pi ix os
 
-  insertIntoWaiting_go :: Int -> Index xs x -> OutSet xs -> OutSet xs
+  insertIntoWaiting_go :: PortId -> Index xs x -> OutSet xs -> OutSet xs
   insertIntoWaiting_go ix Here (OSCons (Running sw) smax rest)
    = OSCons (Running (ix : sw)) smax rest
   insertIntoWaiting_go ix Here other

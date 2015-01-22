@@ -35,6 +35,25 @@ g_zip2
  $ Inp
  $ Empty
 
+g_app2 :: Graph' '[Int, Int] '[Int]
+g_app2
+ = Graph'
+ $ Out Here
+ $ Trans (ICons Here (ICons (There Here) INil)) proc_app2
+ $ Inp
+ $ Inp
+ $ Empty
+
+-- requires unbounded buffer
+g_self_app2 :: Graph' '[Int] '[Int]
+g_self_app2
+ = Graph'
+ $ Out Here
+ $ Trans (ICons Here (ICons Here INil)) proc_app2
+ $ Inp
+ $ Empty
+
+
 
 
 proc_zip2 :: Process () '[a,b] (a,b)
@@ -49,6 +68,20 @@ proc_zip2
                  \in2 _ -> case in2 of
                             Nothing -> Done
                             Just b' -> Put () (a',b') fun
+
+proc_app2 :: Process () '[a,a] a
+proc_app2
+ = Process () fun
+ where
+  fun
+   = \_     -> Get () Here $
+     \in1 _ -> case in1 of
+                Nothing -> Get () (There Here) $
+                 \in2 _ -> case in2 of
+                            Nothing -> Done
+                            Just r' -> Put () r' fun
+                Just l' -> Put () l' fun
+
 
 
 odd_plus_1 :: Process () '[Int] Int
