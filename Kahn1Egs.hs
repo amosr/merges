@@ -54,6 +54,18 @@ g_self_app2
  $ Empty
 
 
+-- A few more nodes
+g_diamond :: Graph' '[Int] '[Int]
+g_diamond
+ = Graph'
+ $ Out Here
+ $ Trans (ICons Here INil) (proc_map (uncurry (+)))
+ $ Trans (ICons Here (ICons (There Here) INil)) proc_zip2
+ $ Trans (ICons (There Here) INil) (proc_map (*2))
+ $ Trans (ICons (      Here) INil) (proc_map (+2))
+ $ Inp
+ $ Empty
+
 
 
 proc_zip2 :: Process () '[a,b] (a,b)
@@ -81,6 +93,16 @@ proc_app2
                             Nothing -> Done
                             Just r' -> Put () r' fun
                 Just l' -> Put () l' fun
+
+proc_map  :: (a -> b) -> Process () '[a] b
+proc_map f
+ = Process () fun
+ where
+  fun
+   = \_     -> Get () Here $
+     \in1 _ -> case in1 of
+                Nothing -> Done
+                Just a' -> Put () (f a') fun
 
 
 
