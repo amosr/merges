@@ -1,0 +1,132 @@
+
+goto LBL0
+LBL0: (L' L0 L0 [])
+    A_v = read A
+     if full  -> goto LBL2
+     if empty -> goto LBL4
+
+LBL1: (L' L0 L0 [Emitted C])
+    A_v = read A
+     if full  -> goto LBL3
+     if empty -> goto LBL5
+
+LBL2: (L' L0 L1 [])
+    C_v = a
+     goto LBL1
+
+LBL3: (L' L0 L1 [Emitted C])
+    goto LBL11
+LBL4: (L' L0 L2 [])
+    B_v = read B
+     if full  -> goto LBL6
+     if empty -> goto LBL8
+
+LBL5: (L' L0 L2 [Emitted C])
+    B_v = read B
+     if full  -> goto LBL7
+     if empty -> goto LBL9
+
+LBL6: (L' L0 L3 [])
+    C_v = b
+     goto LBL5
+
+LBL7: (L' L0 L3 [Emitted C])
+    goto LBL14
+LBL8: (L' L0 LEnd [])
+    goto LBL30
+LBL9: (L' L0 LEnd [Emitted C])
+    goto LBL16
+LBL10: (L' L1 L0 [Emitted C])
+    A_v = read A
+     if full  -> goto LBL12
+     if empty -> goto LBL13
+
+LBL11: (L' L1 L1 [])
+    C_v = a
+     goto LBL10
+
+LBL12: (L' L1 L1 [Emitted C])
+    D_v = read D
+     if full  -> goto LBL18
+     if empty -> goto LBL25
+
+LBL13: (L' L1 L2 [Emitted C])
+    B_v = read B
+     if full  -> goto LBL15
+     if empty -> goto LBL17
+
+LBL14: (L' L1 L3 [])
+    C_v = b
+     goto LBL13
+
+LBL15: (L' L1 L3 [Emitted C])
+    D_v = read D
+     if full  -> goto LBL19
+     if empty -> goto LBL29
+
+LBL16: (L' L1 LEnd [])
+    D_v = read D
+     if full  -> goto LBL20
+     if empty -> goto LBL30
+
+LBL17: (L' L1 LEnd [Emitted C])
+    D_v = read D
+     if full  -> goto LBL21
+     if empty -> goto LBL31
+
+LBL18: (L' L2 L1 [Emitted C])
+    Z_v = a*b
+     goto LBL3
+
+LBL19: (L' L2 L3 [Emitted C])
+    Z_v = a*b
+     goto LBL7
+
+LBL20: (L' L2 LEnd [])
+    Z_v = a*b
+     goto LBL8
+
+LBL21: (L' L2 LEnd [Emitted C])
+    Z_v = a*b
+     goto LBL9
+
+LBL22: (L' LEnd L0 [])
+    A_v = read A
+     if full  -> goto LBL24
+     if empty -> goto LBL26
+
+LBL23: (L' LEnd L0 [Emitted C])
+    A_v = read A
+     if full  -> goto LBL25
+     if empty -> goto LBL27
+
+LBL24: (L' LEnd L1 [])
+    C_v = a
+     goto LBL23
+
+LBL25: (L' LEnd L1 [Emitted C])
+    C_v = a
+     goto LBL22
+
+LBL26: (L' LEnd L2 [])
+    B_v = read B
+     if full  -> goto LBL28
+     if empty -> goto LBL30
+
+LBL27: (L' LEnd L2 [Emitted C])
+    B_v = read B
+     if full  -> goto LBL29
+     if empty -> goto LBL31
+
+LBL28: (L' LEnd L3 [])
+    C_v = b
+     goto LBL27
+
+LBL29: (L' LEnd L3 [Emitted C])
+    C_v = b
+     goto LBL26
+
+LBL30: (L' LEnd LEnd [])
+    return
+LBL31: (L' LEnd LEnd [Emitted C])
+    return

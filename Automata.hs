@@ -1,5 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-module Automata where
+module Automata(Machine(..), State(..), trace, subst2, Subst(..)) where
 import Data.Maybe    (mapMaybe)
 import Data.List     (nub, sort, groupBy)
 import Data.Function (on)
@@ -150,3 +150,6 @@ Machine {_states =
 , _init = S1 0 [0]}
 
 -}
+
+-- TODO: "filter" and equality
+
