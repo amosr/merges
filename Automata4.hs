@@ -112,48 +112,6 @@ ppr_machine m
    = _name f ++ "(" ++ show (_state f) ++ ", " ++ show (_inputs f) ++ ")"
 
 
--- | Just for testing
-data Names = A | B | C | D | E | U | V | W | X | Y | Z
- deriving (Show, Eq, Ord)
-
--- | Zip two inputs together.
--- 1. Pull from both.
--- 2. Output.
--- 3. Release both.
---    Goto 1.
-zip_a :: n -> n -> n -> Machine Int n
-zip_a ina inb out
- = Machine
- { _init = 0
- , _trans = M.fromList
- $ [ (0, Pull ina 1 999)
-   , (1, Pull inb 2 999)
-   , (2, Out  (Function "pair" out [ina,inb]) 3)
-   , (3, Release ina 4)
-   , (4, Release inb 0)
-   , (999, OutFinished out 1000)
-   , (1000, Done) ]
- }
-
--- | Append two inputs
-append_a :: n -> n -> n -> Machine Int n
-append_a ina inb out
- = Machine
- { _init = 0
- , _trans = M.fromList
- $ [ (0, Pull ina                     1 10)
-   , (1, Out  (Function "just" out [ina]) 2)
-   , (2, Release ina                  0)
-
-   , (10, Pull inb                    11 999)
-   , (11, Out  (Function "just" out [inb]) 12)
-   , (12, Release inb                 10)
-
-   , (999, OutFinished out 1000)
-   , (1000, Done) ]
- }
-
-
 
 -- | Collect the inputs and outputs of a machine.
 freevars :: Ord name => Machine l name -> (S.Set name, S.Set name)
