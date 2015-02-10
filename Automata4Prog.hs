@@ -35,15 +35,20 @@ machines p
 
 compile :: forall name. (Ord name, Show name) => Program name -> Maybe (Machine' name)
 compile p_
+ = fuse_all (machines p_)
+
+fuse_all :: forall name. (Ord name, Show name) => [Machine' name] -> Maybe (Machine' name)
+fuse_all ms
  = first_just
- $ map fuse_all (permutations $ machines p_)
+ $ map go
+ $ permutations ms
  where
-  fuse_all []
+  go []
    = Nothing
-  fuse_all [m]
+  go [m]
    = Just m
-  fuse_all (Machine' a : ms)
-   = case fuse_all ms of
+  go (Machine' a : ms)
+   = case go ms of
       Just (Machine' b)
        -> case fuse a b of
            Left _ -> Nothing

@@ -41,11 +41,11 @@ append_a ina inb out
  { _init = 0
  , _trans = M.fromList
  $ [ (0, Pull ina                     1 10)
-   , (1, Out  (Function "just" out [ina]) 2)
+   , (1, Out  (Function "id" out [ina]) 2)
    , (2, Release ina                  0)
 
    , (10, Pull inb                    11 999)
-   , (11, Out  (Function "just" out [inb]) 12)
+   , (11, Out  (Function "id" out [inb]) 12)
    , (12, Release inb                 10)
 
    , (999, OutFinished out 1000)
@@ -62,16 +62,16 @@ merge_a ina inb out
      -- [Value a]
      , (1, Pull inb         2 200)
      -- [Value a, Value b]
-     , (2, If (Function "(<=)" out [ina,inb]) 10 20)
+     , (2, If (Function "le" out [ina,inb]) 10 20)
 
      -- [Value a, Value b, a <= b]
-     , (10, Out (Function "just" out [ina]) 11)
+     , (10, Out (Function "id" out [ina]) 11)
      , (11, Release ina                     12)
      -- [Value b]
      , (12, Pull ina                2       101)
 
      -- [Value a, Value b, b < a]
-     , (20, Out (Function "just" out [inb]) 21)
+     , (20, Out (Function "id" out [inb]) 21)
      , (21, Release inb                     22)
      -- [Value a]
      , (22, Pull inb                2       200)
@@ -80,11 +80,11 @@ merge_a ina inb out
      -- [Empty a] suck from b
      , (100, Pull inb       101 900)
      -- [Empty a, Value b]
-     , (101, Out (Function "just" out [inb]) 102)
+     , (101, Out (Function "id" out [inb]) 102)
      , (102, Release inb    100)
 
      -- [Value a, Empty b] suck from a
-     , (200, Out (Function "just" out [ina]) 201)
+     , (200, Out (Function "id" out [ina]) 201)
      , (201, Release ina                     202)
      , (202, Pull    ina          200        900)
 
@@ -104,7 +104,7 @@ filter_a pred inp out
     , (1, If (Function pred out [inp]) 10 11)
     
     -- [Value inp, pred inp]
-    , (10, Out (Function "just" out [inp]) 11)
+    , (10, Out (Function "id" out [inp]) 11)
     -- [Value inp]
     , (11, Release inp 0)
 
