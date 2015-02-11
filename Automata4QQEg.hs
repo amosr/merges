@@ -25,15 +25,21 @@ bobo
             incd = map inc a
             filtd = filter gt1 incd
 
-            merg = merge filtd  b
+            ff = map dup filtd
+            bb = map dup b      # self-zips don't work
 
-            when filtd out_filtd
+            merg = merge ff  bb
+
+            vals = map snd merg
+            ix = indices vals
+
+            when ix out_filtd
             when merg  out_merg
             |]
  where
   inc = (+5)
   gt1 = (>10)
-  le  = (<=)
+  dup a = (a,a)
 
 
   out_filtd b = putStrLn ("filtd:" ++ show b) 

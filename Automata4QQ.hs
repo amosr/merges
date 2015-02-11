@@ -1,5 +1,6 @@
 {-# LANGUAGE TemplateHaskell, QuasiQuotes #-}
-module Automata4QQ (auto) where
+module Automata4QQ (auto
+    , module Automata4Coms) where
 import Automata4
 import Automata4Coms
 import Automata4Prog
@@ -37,11 +38,14 @@ generate :: Machine' String -> [AStmt] -> Q Exp
 generate (Machine' m) stmts
  = do   lbls <- M.fromList <$> (mapM mklbl $ M.toList trans)
         bufs <- buffnames
-        ios  <- mkbuffs bufs
-        decs <- mapM (mkfun lbls bufs) $ M.toList trans
+        stns <- statenames
+        newIO_buffs  <- mkbuffs bufs
+        newIO_states <- mkbuffs stns
+        decs <- mapM (mkfun lbls bufs stns) $ M.toList trans
         let init' = lbls M.! init
         return
-         $ DoE (ios
+         $ DoE (newIO_buffs
+            ++  newIO_states
             ++ [LetS decs
                , NoBindS (VarE init') ])
 
@@ -62,6 +66,13 @@ generate (Machine' m) stmts
    = do n' <- newName (n ++ "_v")
         return (n, n')
 
+  statenames
+   = let (_,  outs) = freevars m
+     in  M.fromList <$> (mapM statename $ S.toList outs)
+  statename n
+   = do n' <- newName (n ++ "_s")
+        return (n, n')
+
   mkbuffs bufs
    = mapM mkbuff $ M.toList bufs
   mkbuff (_,n')
@@ -71,13 +82,13 @@ generate (Machine' m) stmts
 
   args = []
 
-  mkfun lbls bufs (l,t)
-   = do t' <- mktrans lbls bufs t
+  mkfun lbls bufs stns (l,t)
+   = do t' <- mktrans lbls bufs stns t
         return
           $ FunD (lbls M.! l)
             [ Clause args (NormalB t') [] ]
 
-  mktrans lbls bufs t
+  mktrans lbls bufs stns t
    = case t of
       Pull from full empty
        | from' <- getFrom from
@@ -94,10 +105,20 @@ generate (Machine' m) stmts
        -> return $ VarE (lbls M.! goto)
 
       -- todo
-      Update _ goto
-       -> return $ VarE (lbls M.! goto)
+      Update (Function f out ins) goto
+       -> do    (ins',rs) <- reads bufs ins out stns
+                o <- newName out
+                let is = map (VarE) ins'
+                let f' = foldl AppE (VarE $ mkName f) is
+                writeo <- [|writeIORef|]
+                return
+                 $ DoE (rs
+                    ++ [ LetS [ ValD (VarP o) (NormalB f') [] ]
+                       , NoBindS (writeo `AppE` (VarE (stns M.! out))`AppE` (VarE o)) ]
+                    ++ [ NoBindS $ VarE $ lbls M.! goto ] )
+
       If (Function f out ins) yes no
-       -> do    (ins',rs) <- reads bufs ins
+       -> do    (ins',rs) <- reads bufs ins out stns
                 let is = map (VarE) ins'
                 let f' = foldl AppE (VarE $ mkName f) is
                 if_ <- [| case $(return f') of
@@ -109,7 +130,7 @@ generate (Machine' m) stmts
                      ++ [NoBindS if_])
 
       Out (Function f out ins) goto
-       -> do    (ins',rs) <- reads bufs ins
+       -> do    (ins',rs) <- reads bufs ins out stns
                 o <- newName out
                 let is = map (VarE) ins'
                 let f' = foldl AppE (VarE $ mkName f) is
@@ -132,12 +153,17 @@ generate (Machine' m) stmts
       Done
        -> [| return () |]
 
-  reads bufs ins
-   = unzip <$> mapM (read1 bufs) ins
+  reads bufs ins out stns
+   = unzip <$> mapM (read1 . readfrom bufs out stns) ins
+  readfrom bufs out stns i
+   | i == out
+   = (i, stns M.! i)
+   | otherwise
+   = (i, bufs M.! i)
 
-  read1 bufs i
+  read1 (i, from) -- bufs out stns i
    = do i' <- newName i
-        r  <- [|readIORef $(return $ VarE $ bufs M.! i)|]
+        r  <- [|readIORef $(return $ VarE from)|]
         return (i', BindS (VarP i') r )
 
   trans = _trans m

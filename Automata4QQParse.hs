@@ -31,6 +31,8 @@ parse str
        -> Just [SCom (Machine' (filter_a f l b))]
       ("merge", [l,r])
        -> Just [SCom (Machine' (merge_a l r b))]
+      ("indices", [l])
+       -> Just [SCom (Machine' (indices_a l b))]
       _
        -> Nothing
   parse1 ["when", b, fun]

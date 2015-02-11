@@ -62,7 +62,7 @@ merge_a ina inb out
      -- [Value a]
      , (1, Pull inb         2 200)
      -- [Value a, Value b]
-     , (2, If (Function "le" out [ina,inb]) 10 20)
+     , (2, If (Function "merge_a_le_pair" out [ina,inb]) 10 20)
 
      -- [Value a, Value b, a <= b]
      , (10, Out (Function "id" out [ina]) 11)
@@ -93,6 +93,9 @@ merge_a ina inb out
      , (901, Done)
      ]
  }
+
+merge_a_le_pair :: (Int,a) -> (Int,a) -> Bool
+merge_a_le_pair (a,_) (b,_) = a <= b
 
 filter_a :: String -> n -> n -> Machine Int n
 filter_a pred inp out
@@ -137,14 +140,26 @@ indices_a inp out
  { _init = 0
  , _trans = M.fromList
     [ (0, Pull inp 1 900)
-    , (1, Update (Function "ix=0" out []) 2)
-    , (2, Update (Function "upto=$" out [inp]) 3)
+    , (1, Update (Function "indices_a_init" out [inp]) 3)
     , (3, Release inp 4)
 
-    , (4, Out (Function "ix" out []) 5)
-    , (5, Update (Function "ix=ix+1" out []) 6)
-    , (6, If (Function "ix<upto" out []) 4 0)
+    , (4, Out (Function "indices_a_get_ix" out [out]) 5)
+    , (5, Update (Function "indices_a_inc_ix" out [out]) 6)
+    , (6, If (Function "indices_a_check" out [out]) 4 0)
 
     , (900, OutFinished out 901)
     , (901, Done) ]
  }
+
+indices_a_init :: Int -> (Int,Int)
+indices_a_init upto = (0, upto)
+
+indices_a_get_ix :: (Int,Int) -> Int
+indices_a_get_ix = fst
+
+indices_a_inc_ix :: (Int,Int) -> (Int,Int)
+indices_a_inc_ix (ix,upto) = (ix+1, upto)
+
+indices_a_check :: (Int,Int) -> Bool
+indices_a_check (ix,upto) = ix < upto
+
