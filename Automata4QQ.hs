@@ -104,7 +104,6 @@ generate (Machine' m) stmts
       Release _ goto
        -> return $ VarE (lbls M.! goto)
 
-      -- todo
       Update (Function f out ins) goto
        -> do    (ins',rs) <- reads bufs ins out stns
                 o <- newName out

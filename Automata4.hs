@@ -496,3 +496,31 @@ fuse_print a b
  = case fuse a b of
     Left err -> putStrLn ("error: " ++ show err)
     Right v  -> putStrLn (ppr_machine v)
+
+-- | Minimise
+-- Just remove skips (epsilons?) for now
+minimise :: Ord l => Machine l n -> Machine l n
+minimise m
+ = Machine
+ { _init  = to (_init m)
+ , _trans = M.mapMaybe go (_trans m)
+ }
+ where
+  to l
+   = case M.lookup l $ _trans m of
+      Nothing -> error "Malformed machine to minimise"
+      Just (Skip l') -> to l'
+      Just _    -> l
+
+  go t
+   = case t of
+      Skip _ -> Nothing
+
+      Pull n l1 l2      -> Just $ Pull n (to l1) (to l2)
+      Release n l       -> Just $ Release n (to l)
+      Update f l        -> Just $ Update f (to l)
+      If f l1 l2        -> Just $ If f (to l1) (to l2)
+      Out f l           -> Just $ Out f (to l)
+      OutFinished n l   -> Just $ OutFinished n (to l)
+      Done              -> Just $ Done
+      

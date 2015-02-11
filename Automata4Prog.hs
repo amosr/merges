@@ -52,7 +52,7 @@ fuse_all ms
       Just (Machine' b)
        -> case fuse a b of
            Left _ -> Nothing
-           Right m' -> Just (Machine' m')
+           Right m' -> Just $ Machine' $ minimise m'
       Nothing
        -> Nothing
    
