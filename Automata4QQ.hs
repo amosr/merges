@@ -14,8 +14,6 @@ import Control.Applicative
 import qualified Data.Map as M
 import qualified Data.Set as S
 
-import Data.IORef
-
 auto :: QuasiQuoter
 auto
  = QuasiQuoter
@@ -39,15 +37,12 @@ generate (Machine' m) stmts
  = do   lbls <- M.fromList <$> (mapM mklbl $ M.toList trans)
         bufs <- buffnames
         stns <- statenames
-        newIO_buffs  <- mkbuffs bufs
-        newIO_states <- mkbuffs stns
         decs <- mapM (mkfun lbls bufs stns) $ M.toList trans
         let init' = lbls M.! init
+        uninit <- [|error "Uninitialised"|]
         return
-         $ DoE (newIO_buffs
-            ++  newIO_states
-            ++ [LetS decs
-               , NoBindS (VarE init') ])
+         $ DoE ([LetS decs
+               , NoBindS (app_args (const uninit) (VarE init') bufs stns) ])
 
  where
 
@@ -57,6 +52,11 @@ generate (Machine' m) stmts
         return (l, n')
    | otherwise
    = error "Impossible: l must be in trans map"
+
+  app_args foo f bufs stns
+   = foldl AppE f
+   $ map (foo . VarE . snd)
+   ( M.toList bufs ++ M.toList stns )
 
   buffnames
    = let (ins,outs) = freevars m
@@ -72,18 +72,11 @@ generate (Machine' m) stmts
   statename n
    = do n' <- newName (n ++ "_s")
         return (n, n')
-
-  mkbuffs bufs
-   = mapM mkbuff $ M.toList bufs
-  mkbuff (_,n')
-   = do io <- [|newIORef (error "Uninitialised")|]
-        return $ BindS (VarP n') io
      
-
-  args = []
 
   mkfun lbls bufs stns (l,t)
    = do t' <- mktrans lbls bufs stns t
+        let args = map (VarP . snd) (M.toList bufs ++ M.toList stns) 
         return
           $ FunD (lbls M.! l)
             [ Clause args (NormalB t') [] ]
@@ -92,78 +85,68 @@ generate (Machine' m) stmts
    = case t of
       Pull from full empty
        | from' <- getFrom from
-       , w <- VarE (bufs M.! from)
-       ->    [|do   x <- $(return $ VarE $ mkName from')
-                    case x of
+       , w <- bufs M.! from
+       ->    [|do   o <- $(return $ VarE $ mkName from')
+                    case o of
                      Just x'
-                      -> do writeIORef $(return w) x'
-                            $(return $ VarE $ lbls M.! full)
+                      -> do $(return $ VarP w) <- return x'
+                            $(return $ app_args id (VarE $ lbls M.! full) bufs stns)
                      Nothing
-                      -> $(return $ VarE $ lbls M.! empty)|]
+                      -> $(return $ app_args id (VarE $ lbls M.! empty) bufs stns)|]
 
       Release _ goto
-       -> return $ VarE (lbls M.! goto)
+       -> return $ app_args id (VarE (lbls M.! goto)) bufs stns
 
       Update (Function f out ins) goto
-       -> do    (ins',rs) <- reads bufs ins out stns
-                o <- newName out
+       | sn <- stns M.! out
+       -> do    let ins'      = reads bufs ins out stns
                 let is = map (VarE) ins'
                 let f' = foldl AppE (VarE $ mkName f) is
-                writeo <- [|writeIORef|]
+                r <- [|return $(return f')|]
                 return
-                 $ DoE (rs
-                    ++ [ LetS [ ValD (VarP o) (NormalB f') [] ]
-                       , NoBindS (writeo `AppE` (VarE (stns M.! out))`AppE` (VarE o)) ]
-                    ++ [ NoBindS $ VarE $ lbls M.! goto ] )
+                 $ DoE ([ BindS (VarP sn) r
+                       , NoBindS $ app_args id (VarE $ lbls M.! goto) bufs stns ] )
 
       If (Function f out ins) yes no
-       -> do    (ins',rs) <- reads bufs ins out stns
+       -> do    let ins' = reads bufs ins out stns
                 let is = map (VarE) ins'
                 let f' = foldl AppE (VarE $ mkName f) is
                 if_ <- [| case $(return f') of
-                        True ->  $(return $ VarE $ lbls M.! yes)
-                        False -> $(return $ VarE $ lbls M.! no)
+                        True ->  $(return $ app_args id (VarE $ lbls M.! yes) bufs stns)
+                        False -> $(return $ app_args id (VarE $ lbls M.! no ) bufs stns )
                         |]
                 return
-                 $ DoE (rs
-                     ++ [NoBindS if_])
+                 $ DoE ([NoBindS if_])
 
       Out (Function f out ins) goto
-       -> do    (ins',rs) <- reads bufs ins out stns
-                o <- newName out
+       | bn <- bufs M.! out
+       -> do    let ins' = reads bufs ins out stns
                 let is = map (VarE) ins'
                 let f' = foldl AppE (VarE $ mkName f) is
-                writeo <- [|writeIORef|]
+                r <- [|return $(return f')|]
                 let when = case getWhen out of
                          Nothing -> []
-                         Just w' -> [ NoBindS ( VarE (mkName w') `AppE` VarE o ) ]
+                         Just w' -> [ NoBindS ( VarE (mkName w') `AppE` VarE bn ) ]
                  
                 return
-                 $ DoE (rs
-                    ++ [ LetS [ ValD (VarP o) (NormalB f') [] ]
-                       , NoBindS (writeo `AppE` (VarE (bufs M.! out))`AppE` (VarE o)) ]
+                 $ DoE ([ BindS (VarP bn) r ]
                     ++ when
-                    ++ [ NoBindS $ VarE $ lbls M.! goto ] )
+                    ++ [ NoBindS $ app_args id (VarE $ lbls M.! goto) bufs stns ] )
 
       OutFinished _ goto
-       -> return $ VarE (lbls M.! goto)
+       -> return $ app_args id (VarE (lbls M.! goto)) bufs stns
       Skip goto
-       -> return $ VarE (lbls M.! goto)
+       -> return $ app_args id (VarE (lbls M.! goto)) bufs stns
       Done
        -> [| return () |]
 
   reads bufs ins out stns
-   = unzip <$> mapM (read1 . readfrom bufs out stns) ins
+   = map (readfrom bufs out stns) ins
   readfrom bufs out stns i
    | i == out
-   = (i, stns M.! i)
+   = stns M.! i
    | otherwise
-   = (i, bufs M.! i)
-
-  read1 (i, from) -- bufs out stns i
-   = do i' <- newName i
-        r  <- [|readIORef $(return $ VarE from)|]
-        return (i', BindS (VarP i') r )
+   = bufs M.! i
 
   trans = _trans m
   init  = _init m
