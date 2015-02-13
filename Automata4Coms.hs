@@ -163,3 +163,41 @@ indices_a_inc_ix (ix,upto) = (ix+1, upto)
 indices_a_check :: (Int,Int) -> Bool
 indices_a_check (ix,upto) = ix < upto
 
+
+-- Group by, kind of like a segmented fold.
+-- Consecutive runs with the same first element are collected together with the worker function.
+--
+-- actually, because of stupid, the worker function should be
+--  ((Int,a) -> (Int,a) -> (Int,a))
+-- but should leave the first alone..
+-- 
+-- group_by :: (a -> a -> a) -> [(Int,a)] -> [(Int, a)]
+group_by_a :: String -> n -> n -> Machine Int n
+group_by_a fun inp out
+ = Machine
+ { _init = 0
+ , _trans = M.fromList
+    [ (0, Pull inp 1 40)
+    , (1, Update (Function "group_by_a_set_state" out [inp]) 2)
+    , (2, Release inp 3)
+    , (3, Pull inp 4 30)
+
+    , (4, If (Function "group_by_a_check_fsts" out [out, inp]) 10 20)
+
+    , (10,Update (Function fun out [out,inp]) 2)
+
+    , (20, Out (Function "id" out [out]) 1)
+
+
+    , (30, Out (Function "id" out [out]) 40)
+    , (40, OutFinished out 50)
+    , (50, Done)
+    ]
+ }
+
+
+group_by_a_set_state :: Eq a => (a,b) -> (a,b)
+group_by_a_set_state = id
+
+group_by_a_check_fsts :: Eq a => (a,b) -> (a,b) -> Bool
+group_by_a_check_fsts (s_ix,_) (i_ix, _) = s_ix == i_ix
