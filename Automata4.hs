@@ -14,7 +14,7 @@ data Function name
  , _state   :: name
  , _inputs  :: [name]
  }
- deriving Show
+ deriving (Show, Eq, Ord)
 
 -- | A constrained state machine, though I call the machine states "labels", and the inside function state "output states".
 data Machine label name
@@ -57,6 +57,59 @@ data Transition label name
  | Done
  deriving Show
 
+isDone :: Transition l n -> Bool
+isDone Done
+ = True
+isDone _
+ = False
+
+
+-- | The alphabet for a machine
+data Sigma name
+ = SPullSome name
+ | SPullNone name
+ | SRelease name
+ | SUpdate (Function name)
+ | SIfTrue (Function name)
+ | SIfFalse (Function name)
+ | SOut (Function name)
+ | SOutFinished name
+ | SSkip
+ deriving (Eq, Show, Ord)
+
+is_predecessor :: Eq label => label -> Transition label name -> [Sigma name]
+is_predecessor l t
+ = case t of
+    Pull n l1 l2
+     -> ifeq l1 (SPullSome n) ++ ifeq l2 (SPullNone n)
+    Release n l1
+     -> ifeq l1 (SRelease n)
+    Update f l1
+     -> ifeq l1 (SUpdate f)
+    If f l1 l2
+     -> ifeq l1 (SIfTrue f) ++ ifeq l2 (SIfFalse f)
+    Out f l1
+     -> ifeq l1 (SOut f)
+    OutFinished n l1
+     -> ifeq l1 (SOutFinished n)
+    Skip l1
+     -> ifeq l1 (SSkip)
+    Done
+     -> []
+ where
+  ifeq l' r
+   = if l == l'
+     then [r]
+     else []
+
+preds :: Eq label => Machine label name -> label -> [(label, Sigma name)]
+preds m l
+ = concatMap go
+ $ M.toList
+ $ _trans m
+ where
+  go (l',t)
+   = map (\t -> (l',t)) (is_predecessor l t)
 
 -- | Pretty print a machine as an ugly goto program
 ppr_machine :: (Ord label, Show label, Show name) => Machine label name -> String
@@ -483,11 +536,6 @@ fuse m1 m2
    = return
    $ M.insert l Done m
 
-  isDone Done
-   = True
-  isDone _
-   = False
-
   (in1,out1) = freevars m1
   (in2,out2) = freevars m2
 
@@ -498,9 +546,14 @@ fuse_print a b
     Right v  -> putStrLn (ppr_machine v)
 
 -- | Minimise
+minimise :: (Ord l, Ord n) => Machine l n -> Machine Int n
+minimise
+ = minimise_hopcroft . minimise_skips
+
+-- | Minimise
 -- Just remove skips (epsilons?) for now
-minimise :: Ord l => Machine l n -> Machine l n
-minimise m
+minimise_skips :: Ord l => Machine l n -> Machine l n
+minimise_skips m
  = Machine
  { _init  = to (_init m)
  , _trans = M.mapMaybe go (_trans m)
@@ -524,3 +577,74 @@ minimise m
       OutFinished n l   -> Just $ OutFinished n (to l)
       Done              -> Just $ Done
       
+
+minimise_hopcroft :: (Ord l, Ord n) => Machine l n -> Machine Int n
+minimise_hopcroft m
+ = let ts = M.toList $ _trans m
+       qs = S.fromList $ map fst   ts
+       fs = S.fromList $ map fst $ filter (isDone.snd) ts
+       cs = classes (S.fromList [fs, qs S.\\ fs]) (S.fromList [fs])
+   in  partition_by m cs
+ where
+  classes p w
+   | Just (a, w') <- S.minView w
+   = let chars   = M.fromListWith S.union $ map swappy $ concatMap (preds m) $ S.toList a
+         (p',w'') = M.fold char_split (p,w') chars
+     in  classes p' w''
+
+   -- w is empty
+   | otherwise
+   = p
+
+  char_split pres (p,w)
+   = S.fold (split pres) (p, w) p
+
+  split x y (p,w)
+   | xny <- S.intersection x y
+   , ymx <- y S.\\ x
+   , not $ S.null xny 
+   , not $ S.null ymx 
+   = let p' = S.insert xny (S.insert ymx (S.delete y p))
+         w' | y `S.member` w
+            = S.insert xny (S.insert ymx (S.delete y w))
+            | otherwise
+            = w
+    in   if   S.size xny <= S.size ymx
+         then (p', S.insert xny w')
+         else (p', S.insert ymx w')
+
+   | otherwise
+   = (p, w)
+
+  swappy (a,b) = (b,S.singleton a)
+
+partition_by :: Ord l => Machine l n -> S.Set (S.Set l) -> Machine Int n
+partition_by m cs
+ = Machine
+ { _init  = ix (_init m)
+ , _trans = M.fromList $ map go $ M.toList $ _trans m
+ }
+ where
+  ix l
+   = case concatMap (ix_search l) (S.toList cs `zip` [0..]) of
+      [] -> error "bad partition"
+      (x:xs) -> x
+  ix_search l (c,ix)
+   | l `S.member` c
+   = [ix]
+   | otherwise
+   = []
+
+  go (l, t)
+   = (ix l, trans t)
+
+  trans t
+   = case t of
+      Pull n l1 l2      -> Pull n (ix l1) (ix l2)
+      Release n l1      -> Release n (ix l1)
+      Update f l1       -> Update f (ix l1)
+      If f l1 l2        -> If f (ix l1) (ix l2)
+      Out f l1          -> Out f (ix l1)
+      OutFinished n l1  -> OutFinished n (ix l1)
+      Done              -> Done
+

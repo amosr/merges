@@ -18,23 +18,27 @@ bobo :: IO ()
 bobo
  = do   pull1 <- puller [1..10]
         pull2 <- puller [5..15]
+        pull3 <- puller [5..15]
+        pull4 <- puller [5..15]
         [auto|
             a = read pull1
             b = read pull2
+            c = read pull3
+            d = read pull4
 
-            incd = map inc a
-            filtd = filter gt1 incd
+            a' = map dup a
+            b' = map dup b
+            c' = map dup c
+            d' = map dup d
 
-            ff = map dup filtd
-            bb = map dup b      # self-zips don't work
+            m1 = merge a' b'
+            m2 = merge c' d'
 
-            merg = merge ff  bb
+            m3 = merge m1 m2
+            when m3 out_merg
 
-            vals = map snd merg
-            ix = indices vals
 
-            when ix out_filtd
-            when merg  out_merg
+
             |]
  where
   inc = (+5)
