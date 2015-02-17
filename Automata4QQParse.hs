@@ -15,7 +15,10 @@ parse :: String -> Maybe [AStmt]
 parse str
  = concat <$> mapM (parse1.words.uncomment) (lines str)
  where
-  uncomment = takeWhile (/='#')
+  uncomment ('-':'-':_) = []
+  uncomment [] = []
+  uncomment (x:xs) = x : uncomment xs
+
 
   parse1 [b,"=","read", inp]
    = Just [SRead b inp]

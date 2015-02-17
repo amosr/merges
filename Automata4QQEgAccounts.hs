@@ -28,34 +28,34 @@ go
         pull_loans     <- pull_file "eg_loans.txt"
         [auto|
             as = read pull_accounts
-            # read loans (both sorted by account id)
+            -- read loans (both sorted by account id)
             ls = read pull_loans
 
-            # parse the input records
+            -- parse the input records
             as'  = map read_account as
             ls'  = map read_loan    ls
 
-            # inject the input records into a common type so we can merge them
+            -- inject the input records into a common type so we can merge them
             as'' = map left         as'
             ls'' = map right        ls'
 
-            # merge the accounts and loans together
-            # so all of same account id are consecutive
+            -- merge the accounts and loans together
+            -- so all of same account id are consecutive
             all = merge as'' ls''
 
-            # group consecutive loans and accounts of same id
-            # summing up loan amounts etc
+            -- group consecutive loans and accounts of same id
+            -- summing up loan amounts etc
             join = group_by sum_account all
 
-            # filter out any with no accounts or no loans
+            -- filter out any with no accounts or no loans
             join' = filter both_just join
             join'' = map get_just join'
 
-            # filter into two groups depending on loan value
+            -- filter into two groups depending on loan value
             arrears = filter in_arrears join''
             offers  = filter offer_loan join''
 
-            # send emails
+            -- send emails
             when arrears send_arrears_email
             when offers  send_loan_offer
             |]
