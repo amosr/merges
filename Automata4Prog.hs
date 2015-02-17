@@ -1,8 +1,12 @@
 {-# LANGUAGE GADTs, ExistentialQuantification, TypeOperators, DataKinds, KindSignatures, RankNTypes, StandaloneDeriving, ScopedTypeVariables #-}
 module Automata4Prog where
 import Automata4
+import Automata4V
 import Automata4Coms
 import Data.List (permutations)
+
+import qualified Data.Set as S
+
 
 data In = In
 data a := b = a := b
@@ -33,33 +37,51 @@ machines p
   go (Read n In p') = go p'
   go Return = []
 
-compile :: forall name. (Ord name, Show name) => Program name -> Maybe (Machine' name)
+compile :: forall name. (Ord name, Show name) => Program name -> Either String (Machine' name)
 compile p_
  = fuse_all (machines p_)
 
-fuse_all :: forall name. (Ord name, Show name) => [Machine' name] -> Maybe (Machine' name)
+fuse_all :: forall name. (Ord name, Show name) => [Machine' name] -> Either String (Machine' name)
 fuse_all ms
  = first_just
  $ map go
- $ permutations ms
+ -- $ permutations
+ [ ms ]
  where
   go []
-   = Nothing
+   = Left "No machines"
   go [m]
-   = Just m
+   = Right m
   go (Machine' a : ms)
    = case go ms of
-      Just (Machine' b)
+      Right (Machine' b)
+       | (_,oa) <- freevars a
+       , S.size oa == 1
+       , Just (oa', _) <- S.minView oa
+       , oa' `S.member` fst (freevars b)
+       -> case fuseV b a of
+           Left r -> Left (show r)
+           Right m' -> Right $ Machine' $ minimise m'
+       | (_,ob) <- freevars b
+       , S.size ob == 1
+       , Just (ob', _) <- S.minView ob
+       , ob' `S.member` fst (freevars a)
+       -> case fuseV a b of
+           Left r -> Left (show r)
+           Right m' -> Right $ Machine' $ minimise m'
+       | otherwise
        -> case fuse a b of
-           Left _ -> Nothing
-           Right m' -> Just $ Machine' $ minimise m'
-      Nothing
-       -> Nothing
+           Left r -> Left (show r)
+           Right m' -> Right $ Machine' $ minimise m'
+      Left err
+       -> Left err
    
   first_just []
-   = Nothing
-  first_just (Just n : _)
-   = Just n
+   = Left "none"
+  first_just [x]
+   = x
+  first_just (Right n : _)
+   = Right n
   first_just (_ : rs)
    = first_just rs
 

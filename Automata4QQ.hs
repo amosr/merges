@@ -26,9 +26,9 @@ auto_exp str
     Just stmts
      | ms <- machinesOfParse stmts
      -> case fuse_all ms of
-         Nothing
-          -> error "can't fuse these together"
-         Just m
+         Left err
+          -> error ("can't fuse these together: " ++ err)
+         Right m
           -> generate m stmts
     Nothing-> error "bad parse"
 

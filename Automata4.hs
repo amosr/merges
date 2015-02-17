@@ -57,6 +57,18 @@ data Transition label name
  | Done
  deriving Show
 
+mapT :: (l -> l') -> Transition l n -> Transition l' n
+mapT f t
+ = case t of
+    Pull n l1 l2    -> Pull n (f l1) (f l2)
+    Release n l1    -> Release n (f l1)
+    Update f' l1    -> Update f' (f l1)
+    If f' l1 l2     -> If f' (f l1) (f l2)
+    Out f' l1       -> Out f' (f l1)
+    OutFinished n l1-> OutFinished n (f l1)
+    Skip l1         -> Skip (f l1)
+    Done            -> Done
+
 isDone :: Transition l n -> Bool
 isDone Done
  = True
@@ -76,6 +88,7 @@ data Sigma name
  | SOutFinished name
  | SSkip
  deriving (Eq, Show, Ord)
+
 
 is_predecessor :: Eq label => label -> Transition label name -> [Sigma name]
 is_predecessor l t
@@ -110,6 +123,7 @@ preds m l
  where
   go (l',t)
    = map (\t -> (l',t)) (is_predecessor l t)
+
 
 -- | Pretty print a machine as an ugly goto program
 ppr_machine :: (Ord label, Show label, Show name) => Machine label name -> String
@@ -220,6 +234,7 @@ data MergeError l1 l2 name
  -- | Release after unsuccessful pull or something
  | ErrorReleaseOfNonValue (Transition l1 name) (Transition l2 name) (S.Set (Event name))
  deriving Show
+
 
 -- | Fuse two machines together.
 -- They should share at least one input, or one of the outputs should be another's inputs.
@@ -337,25 +352,6 @@ fuse m1 m2
 
      -- Pulls ----------------
 
-     -- If both machines are pulling from the same source, it's easy enough.
-     -- We pull from the input once
-     (Pull ina l1Y l1N, Pull inb l2Y l2N)
-      | ina == inb
-      -- Check if machine 1 has already pulled on this source, but machine 2 has not dealt with it.
-      -- This actually means that machine 1 has pulled without releasing.
-      , S.member (Value ina) evs
-      -> Left (ErrorNoRelease t1 t2 evs) -- insert m l (Skip (L' l1 l2Y (filter (/=Value ina) evs)))
-      | ina == inb
-      -- We already know the input is finished, so we can just skip to the finished parts.
-      -- We don't need to filter out the finished here, because it'll stay finished
-      , S.member (Finished ina) evs
-      -> insert m l (Skip (L' l1N l2N evs))
-
-      -- Pull both at once
-      -- add a Value ina to the buffer, so l2 can release it.
-      | ina == inb
-      -> insert m l (Pull ina (L' l1Y l2Y (S.insert (Value ina) evs)) (L' l1N l2N (S.insert (Finished ina) evs)))
-
      -- The first machine is trying to pull.
      -- There are a few possibilities here:
      --
@@ -382,13 +378,13 @@ fuse m1 m2
       -- Second machine computes ina, so we know it's finished
       | ina `S.member` out2
       , S.member (Value ina) evs
-      -> insert m l (Skip (L' l1Y l2 (S.delete (Value ina) evs)))
+      -> insert m l (Skip (L' l1Y l2 evs))
       | ina `S.member` out2
       -> insert m l (Skip (L' l1N l2 evs))
 
       -- Still some leftover bits to do
       | S.member (Value ina) evs
-      -> insert m l (Skip (L' l1Y l2 (S.delete (Value ina) evs)))
+      -> insert m l (Skip (L' l1Y l2 evs))
       | S.member (Finished ina) evs
       -> insert m l (Skip (L' l1N l2 evs))
       -- Just an input
@@ -398,21 +394,21 @@ fuse m1 m2
      (Pull ina l1Y l1N, _)
       -- 2. fall through
 
+      -- ina is finished
+      | S.member (Finished ina) evs
+      -> insert m l (Skip (L' l1N l2 evs))
+
       -- 3. ina is used by both machines, and there is no existing buffered value of ina
       | not (S.member (Value ina) evs)
       , ina `S.member` in2
       -> insert m l (Pull ina (L' l1Y l2 (S.insert (Value ina) evs)) (L' l1N l2 (S.insert (Finished ina) evs)))
-
-      -- ina is finished
-      | S.member (Finished ina) evs
-      -> insert m l (Skip (L' l1N l2 evs))
 
       -- 4. fall through
 
       -- 5. ina is computed by the second machine, and is on the event stack
       | ina `S.member` out2
       , S.member (Value ina) evs
-      -> insert m l (Skip (L' l1Y l2 (S.delete (Value ina) evs)))
+      -> insert m l (Skip (L' l1Y l2 evs))
       -- ina is computed by the second machine, and it's finished
       | ina `S.member` out2
       , S.member (Finished ina) evs
@@ -430,11 +426,11 @@ fuse m1 m2
       -- inb is computed by first machine so it must be finished
       | inb `S.member` out1
       , S.member (Value inb) evs
-      -> insert m l (Skip (L' l1 l2Y (S.delete (Value inb) evs)))
+      -> insert m l (Skip (L' l1 l2Y evs))
       | inb `S.member` out1
       -> insert m l (Skip (L' l1 l2N evs))
       | S.member (Value inb) evs
-      -> insert m l (Skip (L' l1 l2Y (S.delete (Value inb) evs)))
+      -> insert m l (Skip (L' l1 l2Y evs))
       | S.member (Finished inb) evs
       -> insert m l (Skip (L' l1 l2N evs))
       | otherwise
@@ -465,32 +461,36 @@ fuse m1 m2
       -- If ina is computed by the second machine, we must have a value of it in the buffer now.
       -- Release it.
       | ina `S.member` out2
-      , Value ina `S.member` evs
+      -- , Value ina `S.member` evs
       -> insert m l (Skip (L' l' l2 (S.delete (Value ina) evs)))
       -- Otherwise, we don't have a value in the buffer and something is very wrong
-      | ina `S.member` out2
-      -> Left (ErrorReleaseOfNonValue t1 t2 evs)
+      -- | ina `S.member` out2
+      -- -> Left (ErrorReleaseOfNonValue t1 t2 evs)
 
       -- If ina is used by second machine, we cannot release until after it has
       | ina `S.member` in2
-      , not (Value ina `S.member` evs)
+      , not (Value ina `S.member` evs) || isDone t2
       -> insert m l (Release ina (L' l' l2 evs))
 
       -- If ina is not used or computed by the second machine, we can release as we please.
       -- It's not needed in the events
-      | not (ina `S.member` in2)
+      | not (ina `S.member` in2) && not (ina `S.member` out2)
       -> insert m l (Release ina (L' l' l2 evs))
 
      (_, Release inb l')
       -- If inb is computed by the first machine, we must have a value of it in the buffer now.
       -- Release it.
       | inb `S.member` out1
-      , Value inb `S.member` evs
+      -- , Value inb `S.member` evs
       -> insert m l (Skip (L' l1 l' (S.delete (Value inb) evs)))
       -- Otherwise, we don't have a value in the buffer and something is very wrong
-      | inb `S.member` out1
-      -> Left (ErrorReleaseOfNonValue t1 t2 evs)
+      -- | inb `S.member` out1
+      -- -> Left (ErrorReleaseOfNonValue t1 t2 evs)
 
+      -- If inb is used by the first machine but it's finished, we must release
+      | inb `S.member` in1
+      , isDone t1
+      -> insert m l (Release inb (L' l1 l' (S.delete (Value inb) evs)))
       -- If inb is used by the first machine, we don't need to perform an actual release, but just remove it from events so the first machine can release.
       | inb `S.member` in1
       , Value inb `S.member` evs
@@ -500,7 +500,7 @@ fuse m1 m2
       -> Left (ErrorReleaseOfNonValue t1 t2 evs)
 
       -- If inb is not used by the first machine, we can release
-      | not (inb `S.member` in1)
+      | not (inb `S.member` in1) && not (inb `S.member` out1)
       -> insert m l (Release inb (L' l1 l' evs))
 
 
@@ -646,5 +646,16 @@ partition_by m cs
       If f l1 l2        -> If f (ix l1) (ix l2)
       Out f l1          -> Out f (ix l1)
       OutFinished n l1  -> OutFinished n (ix l1)
+      Skip l1           -> Skip (ix l1)
       Done              -> Done
+
+-- TODO
+minimise_reorder :: Ord l => Machine l n -> Machine l n
+minimise_reorder m
+ = Machine
+ { _init = _init m
+ , _trans = M.fromList $ map go $ M.toList $ _trans m
+ }
+ where
+  go = id
 

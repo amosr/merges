@@ -36,9 +36,6 @@ bobo
 
             m3 = merge m1 m2
             when m3 out_merg
-
-
-
             |]
  where
   inc = (+5)

@@ -94,6 +94,7 @@ merge_a ina inb out
      ]
  }
 
+{-# INLINE merge_a_le_pair #-}
 merge_a_le_pair :: (Int,a) -> (Int,a) -> Bool
 merge_a_le_pair (a,_) (b,_) = a <= b
 
@@ -151,15 +152,19 @@ indices_a inp out
     , (901, Done) ]
  }
 
+{-# INLINE indices_a_init #-}
 indices_a_init :: Int -> (Int,Int)
 indices_a_init upto = (0, upto)
 
+{-# INLINE indices_a_get_ix #-}
 indices_a_get_ix :: (Int,Int) -> Int
 indices_a_get_ix = fst
 
+{-# INLINE indices_a_inc_ix #-}
 indices_a_inc_ix :: (Int,Int) -> (Int,Int)
 indices_a_inc_ix (ix,upto) = (ix+1, upto)
 
+{-# INLINE indices_a_check #-}
 indices_a_check :: (Int,Int) -> Bool
 indices_a_check (ix,upto) = ix < upto
 
@@ -196,8 +201,10 @@ group_by_a fun inp out
  }
 
 
+{-# INLINE group_by_a_set_state #-}
 group_by_a_set_state :: Eq a => (a,b) -> (a,b)
 group_by_a_set_state = id
 
+{-# INLINE group_by_a_check_fsts #-}
 group_by_a_check_fsts :: Eq a => (a,b) -> (a,b) -> Bool
 group_by_a_check_fsts (s_ix,_) (i_ix, _) = s_ix == i_ix
