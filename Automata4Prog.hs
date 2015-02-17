@@ -46,6 +46,11 @@ fuse_all ms
  = first_just
  $ map go
  -- $ permutations
+ -- TODO: the thing left here is that we want to walk the dag, and only fuse "related things" to start with.
+ -- there's no point fusing machines for "x = map c" and "y = map d" together
+ -- because we don't know whether to compute Xs then Ys, or Ys then Xs, or both interleaved.
+ -- so instead we would fuse those two vertical chains, then only once we see a machine
+ -- that uses both, fuse them all together.
  [ ms ]
  where
   go []
