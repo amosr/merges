@@ -8,19 +8,21 @@ import Data.Monoid
 -- | A "worker function" that accesses state associated with a particular output,
 -- and uses the current values of "inputs".
 -- Each output has a separate state, the idea being different states are non-interfering and so can be reordered or whatever.
-data Function name
+data Function name fun
  = Function
- { _name    :: String
+ { _fun     :: fun
+ -- which output this function "belongs to"
  , _state   :: name
+ -- arguments to function
  , _inputs  :: [name]
  }
  deriving (Show, Eq, Ord)
 
 -- | A constrained state machine, though I call the machine states "labels", and the inside function state "output states".
-data Machine label name
+data Machine label name fun
  = Machine
  { _init  :: label -- would be initial state here too
- , _trans :: M.Map label (Transition label name)
+ , _trans :: M.Map label (Transition label name fun)
  }
  deriving Show
 
@@ -35,7 +37,7 @@ data Machine label name
 --  * A machine must not output to a stream after "finishing" the stream.
 --  * A machine can only enter "Done" after finishing all its outputs.
 --
-data Transition label name
+data Transition label name fun
  -- | Pull from input, going to first label if there is input available, or second if the input is finished.
  = Pull   name         label label
  -- | After a successful pull, the input must be released.
@@ -43,11 +45,11 @@ data Transition label name
  -- In the case of fusing machines, this allows another machine to now pull from this input.
  | Release name        label
  -- | Update the local output state, using given information.
- | Update (Function name) label
+ | Update (Function name fun) label
  -- | If based on given values and state
- | If     (Function name) label label
+ | If     (Function name fun) label label
  -- | Output a single value to output stream (function's _state specifies which stream)
- | Out    (Function name) label
+ | Out    (Function name fun) label
  -- | Finish the output stream. It cannot be written to any more.
  | OutFinished name label
  -- | Do nothing. Useful for code generation in fuse.
@@ -57,7 +59,7 @@ data Transition label name
  | Done
  deriving Show
 
-mapT :: (l -> l') -> Transition l n -> Transition l' n
+mapT :: (l -> l') -> Transition l n f -> Transition l' n f
 mapT f t
  = case t of
     Pull n l1 l2    -> Pull n (f l1) (f l2)
@@ -69,7 +71,7 @@ mapT f t
     Skip l1         -> Skip (f l1)
     Done            -> Done
 
-isDone :: Transition l n -> Bool
+isDone :: Transition l n f -> Bool
 isDone Done
  = True
 isDone _
@@ -77,20 +79,20 @@ isDone _
 
 
 -- | The alphabet for a machine
-data Sigma name
+data Sigma name fun
  = SPullSome name
  | SPullNone name
  | SRelease name
- | SUpdate (Function name)
- | SIfTrue (Function name)
- | SIfFalse (Function name)
- | SOut (Function name)
+ | SUpdate  (Function name fun)
+ | SIfTrue  (Function name fun)
+ | SIfFalse (Function name fun)
+ | SOut     (Function name fun)
  | SOutFinished name
  | SSkip
  deriving (Eq, Show, Ord)
 
 
-is_predecessor :: Eq label => label -> Transition label name -> [Sigma name]
+is_predecessor :: Eq label => label -> Transition label name fun -> [Sigma name fun]
 is_predecessor l t
  = case t of
     Pull n l1 l2
@@ -115,7 +117,7 @@ is_predecessor l t
      then [r]
      else []
 
-preds :: Eq label => Machine label name -> label -> [(label, Sigma name)]
+preds :: Eq label => Machine label name fun -> label -> [(label, Sigma name fun)]
 preds m l
  = concatMap go
  $ M.toList
@@ -126,7 +128,7 @@ preds m l
 
 
 -- | Pretty print a machine as an ugly goto program
-ppr_machine :: (Ord label, Show label, Show name) => Machine label name -> String
+ppr_machine :: (Ord label, Show label, Show name, Show fun) => Machine label name fun -> String
 ppr_machine m
  = unlines $
     [ "goto " ++ lbl (_init m) ]
@@ -176,12 +178,12 @@ ppr_machine m
    = "return"
 
   ppr_f f
-   = _name f ++ "(" ++ show (_state f) ++ ", " ++ show (_inputs f) ++ ")"
+   = show (_fun f) ++ "(" ++ show (_state f) ++ ", " ++ show (_inputs f) ++ ")"
 
 
 
 -- | Collect the inputs and outputs of a machine.
-freevars :: Ord name => Machine l name -> (S.Set name, S.Set name)
+freevars :: Ord name => Machine l name fun -> (S.Set name, S.Set name)
 freevars m
  = mconcat
  $ map get
@@ -224,22 +226,22 @@ data L' l1 l2 name
  deriving (Eq,Ord,Show)
 
 -- | Possible errors
-data MergeError l1 l2 name
+data MergeError l1 l2 name fun
  -- | One of the input machines is malformed, pointing to a non-existent label
  = ErrorBadTransition l1 l2
  -- | An unhandled case. Probably requires extra buffering.
- | ErrorUnhandled (Transition l1 name) (Transition l2 name) (S.Set (Event name))
+ | ErrorUnhandled (Transition l1 name fun) (Transition l2 name fun) (S.Set (Event name))
  -- | No release after a pull
- | ErrorNoRelease (Transition l1 name) (Transition l2 name) (S.Set (Event name))
+ | ErrorNoRelease (Transition l1 name fun) (Transition l2 name fun) (S.Set (Event name))
  -- | Release after unsuccessful pull or something
- | ErrorReleaseOfNonValue (Transition l1 name) (Transition l2 name) (S.Set (Event name))
+ | ErrorReleaseOfNonValue (Transition l1 name fun) (Transition l2 name fun) (S.Set (Event name))
  deriving Show
 
 
 -- | Fuse two machines together.
 -- They should share at least one input, or one of the outputs should be another's inputs.
 -- If they do not share anything, it will still work, but the ordering will be kind of arbitrary.
-fuse :: (Ord name, Ord l1, Ord l2) => Machine l1 name -> Machine l2 name -> Either (MergeError l1 l2 name) (Machine (L' l1 l2 name) name)
+fuse :: (Ord name, Ord l1, Ord l2) => Machine l1 name fun -> Machine l2 name fun -> Either (MergeError l1 l2 name fun) (Machine (L' l1 l2 name) name fun)
 fuse m1 m2
  = do   trans <- go init M.empty
         return Machine
@@ -546,13 +548,13 @@ fuse_print a b
     Right v  -> putStrLn (ppr_machine v)
 
 -- | Minimise
-minimise :: (Ord l, Ord n) => Machine l n -> Machine Int n
+minimise :: (Ord l, Ord n, Ord f) => Machine l n f -> Machine Int n f
 minimise
  = minimise_hopcroft . minimise_skips
 
 -- | Minimise
 -- Just remove skips (epsilons?) for now
-minimise_skips :: Ord l => Machine l n -> Machine l n
+minimise_skips :: Ord l => Machine l n f -> Machine l n f
 minimise_skips m
  = Machine
  { _init  = to (_init m)
@@ -578,7 +580,7 @@ minimise_skips m
       Done              -> Just $ Done
       
 
-minimise_hopcroft :: (Ord l, Ord n) => Machine l n -> Machine Int n
+minimise_hopcroft :: (Ord l, Ord n, Ord f) => Machine l n f -> Machine Int n f
 minimise_hopcroft m
  = let ts = M.toList $ _trans m
        qs = S.fromList $ map fst   ts
@@ -618,7 +620,7 @@ minimise_hopcroft m
 
   swappy (a,b) = (b,S.singleton a)
 
-partition_by :: Ord l => Machine l n -> S.Set (S.Set l) -> Machine Int n
+partition_by :: Ord l => Machine l n f -> S.Set (S.Set l) -> Machine Int n f
 partition_by m cs
  = Machine
  { _init  = ix (_init m)
@@ -650,7 +652,7 @@ partition_by m cs
       Done              -> Done
 
 -- TODO
-minimise_reorder :: Ord l => Machine l n -> Machine l n
+minimise_reorder :: Ord l => Machine l n f -> Machine l n f
 minimise_reorder m
  = Machine
  { _init = _init m
