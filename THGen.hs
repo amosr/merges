@@ -1,10 +1,7 @@
 {-# LANGUAGE TemplateHaskell, QuasiQuotes #-}
-module Automata4QQ (auto
-    , module Automata4Coms) where
+module THGen where
 import Automata4
-import Automata4Coms
 import Automata4Prog
-import Automata4QQParse
 
 import Language.Haskell.TH
 import Language.Haskell.TH.Syntax
@@ -14,26 +11,8 @@ import Control.Applicative
 import qualified Data.Map as M
 import qualified Data.Set as S
 
-auto :: QuasiQuoter
-auto
- = QuasiQuoter
- { quoteExp = auto_exp
- }
-
-auto_exp :: String -> Q Exp
-auto_exp str
- = case parse str of
-    Just stmts
-     | ms <- machinesOfParse stmts
-     -> case fuse_all ms of
-         Left err
-          -> error ("can't fuse these together: " ++ err)
-         Right m
-          -> generate m stmts
-    Nothing-> error "bad parse"
-
-generate :: Machine' String -> [AStmt] -> Q Exp
-generate (Machine' m) stmts
+generate :: Machine' Name Exp -> M.Map Name Exp -> Q Exp
+generate (Machine' m) sources_sinks
  = do   lbls <- M.fromList <$> (mapM mklbl $ M.toList trans)
         bufs <- buffnames
         stns <- statenames
@@ -63,14 +42,14 @@ generate (Machine' m) stmts
          all        = S.union ins outs
      in  M.fromList <$> (mapM buffname $ S.toList all)
   buffname n
-   = do n' <- newName (n ++ "_v")
+   = do n' <- newName (show n ++ "_v")
         return (n, n')
 
   statenames
    = let (_,  outs) = freevars m
      in  M.fromList <$> (mapM statename $ S.toList outs)
   statename n
-   = do n' <- newName (n ++ "_s")
+   = do n' <- newName (show n ++ "_s")
         return (n, n')
      
 
@@ -84,9 +63,9 @@ generate (Machine' m) stmts
   mktrans lbls bufs stns t
    = case t of
       Pull from full empty
-       | from' <- getFrom from
+       | Just from' <- getFrom from
        , w <- bufs M.! from
-       ->    [|do   o <- $(return $ VarE $ mkName from')
+       ->    [|do   o <- $(return $ from')
                     case o of
                      Just x'
                       -> do $(return $ VarP w) <- return x'
@@ -101,7 +80,7 @@ generate (Machine' m) stmts
        | sn <- stns M.! out
        -> do    let ins'      = reads bufs ins out stns
                 let is = map (VarE) ins'
-                let f' = foldl AppE (VarE $ mkName f) is
+                let f' = foldl AppE f is
                 r <- [|return $(return f')|]
                 return
                  $ DoE ([ BindS (VarP sn) r
@@ -110,7 +89,7 @@ generate (Machine' m) stmts
       If (Function f out ins) yes no
        -> do    let ins' = reads bufs ins out stns
                 let is = map (VarE) ins'
-                let f' = foldl AppE (VarE $ mkName f) is
+                let f' = foldl AppE f is
                 if_ <- [| case $(return f') of
                         True ->  $(return $ app_args id (VarE $ lbls M.! yes) bufs stns)
                         False -> $(return $ app_args id (VarE $ lbls M.! no ) bufs stns )
@@ -122,11 +101,11 @@ generate (Machine' m) stmts
        | bn <- bufs M.! out
        -> do    let ins' = reads bufs ins out stns
                 let is = map (VarE) ins'
-                let f' = foldl AppE (VarE $ mkName f) is
+                let f' = foldl AppE f is
                 r <- [|return $(return f')|]
                 let when = case getWhen out of
                          Nothing -> []
-                         Just w' -> [ NoBindS ( VarE (mkName w') `AppE` VarE bn ) ]
+                         Just w' -> [ NoBindS ( w' `AppE` VarE bn ) ]
                  
                 return
                  $ DoE ([ BindS (VarP bn) r ]
@@ -152,24 +131,8 @@ generate (Machine' m) stmts
   init  = _init m
 
   getFrom from
-   = getFrom' from stmts
-  getFrom' from []
-   = from
-  getFrom' from (s : rest)
-   | SRead f f2 <- s
-   , f == from
-   = f2
-   | otherwise
-   = getFrom' from rest
+   = M.lookup from sources_sinks
 
   getWhen from
-   = getWhen' from stmts
-  getWhen' from []
-   = Nothing
-  getWhen' from (s : rest)
-   | SWhen f f2 <- s
-   , f == from
-   = Just f2
-   | otherwise
-   = getWhen' from rest
+   = M.lookup from sources_sinks
 

@@ -55,7 +55,7 @@ index Here (VCons vs _)
 index (There ix) (VCons _ rs)
  = index ix rs
 
-index ix VNil
+index _ VNil
  = error "Impossible!"
 
 push1 :: Index xs x -> x -> Values xs -> Values xs

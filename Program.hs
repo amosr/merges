@@ -1,8 +1,10 @@
 {-# LANGUAGE GADTs, ExistentialQuantification #-}
 module Program where
 
-data Source a
- = forall s. Source s (s -> IO (Maybe a, s))
+-- TODO: move to explicit state
+-- (s, s -> IO (Maybe a))
+type Source a
+ = (IO (Maybe a))
 
 data Comb a where
  Read    :: Source a -> Comb a
@@ -15,8 +17,8 @@ data Comb a where
  GroupBy :: Eq eq => (a -> a -> a) -> Comb (eq,a) -> Comb (eq,a)
 
 
-data Sink a
- = forall s. Sink s (s -> Maybe a -> IO s)
+type Sink a
+ = (a -> IO ())
 
 data When a
  = When (Comb a) (Sink a)

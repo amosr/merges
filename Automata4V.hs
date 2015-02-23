@@ -24,7 +24,7 @@ data L'V l1 l2
 -- If these conditions hold, we can use a simpler, specialised fusion algorithm.
 -- Basically, we start by executing M1, and whenever M2's output is read, we swap to M2 until an output is made, then swapping back to M1.
 -- Sometimes the general one can get confused and generate too many states.
-fuseV :: (Ord l1, Ord l2, Ord name) => Machine l1 name -> Machine l2 name -> Either (MergeError l1 l2 name) (Machine (L'V l1 l2) name)
+fuseV :: (Ord l1, Ord l2, Ord name) => Machine l1 name f -> Machine l2 name f -> Either (MergeError l1 l2 name f) (Machine (L'V l1 l2) name f)
 fuseV m1 m2
  = do   trans <- go init M.empty
         return Machine

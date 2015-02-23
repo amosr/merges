@@ -548,7 +548,7 @@ fuse_print a b
     Right v  -> putStrLn (ppr_machine v)
 
 -- | Minimise
-minimise :: (Ord l, Ord n, Ord f) => Machine l n f -> Machine Int n f
+minimise :: (Ord l, Ord n, Eq f) => Machine l n f -> Machine Int n f
 minimise
  = minimise_hopcroft . minimise_skips
 
@@ -580,7 +580,7 @@ minimise_skips m
       Done              -> Just $ Done
       
 
-minimise_hopcroft :: (Ord l, Ord n, Ord f) => Machine l n f -> Machine Int n f
+minimise_hopcroft :: (Ord l, Ord n, Eq f) => Machine l n f -> Machine Int n f
 minimise_hopcroft m
  = let ts = M.toList $ _trans m
        qs = S.fromList $ map fst   ts
@@ -590,15 +590,27 @@ minimise_hopcroft m
  where
   classes p w
    | Just (a, w') <- S.minView w
-   = let chars   = M.fromListWith S.union $ map swappy $ concatMap (preds m) $ S.toList a
-         (p',w'') = M.fold char_split (p,w') chars
+   = let chars    = m_fromListWith S.union $ map swappy $ concatMap (preds m) $ S.toList a
+         (p',w'') = foldl char_split (p,w') chars
      in  classes p' w''
 
    -- w is empty
    | otherwise
    = p
 
-  char_split pres (p,w)
+  -- M.fromListWith, but without Ord.
+  m_fromListWith f ls
+   = foldl (m_ins f) [] ls
+
+  m_ins f [] (a,s)
+   = [(a,s)]
+  m_ins f ((a',s'):rs) (a,s)
+   | a' == a
+   = (a, f s s') : rs
+   | otherwise
+   = (a', s') : m_ins f rs (a,s)
+
+  char_split (p,w) (_, pres)
    = S.fold (split pres) (p, w) p
 
   split x y (p,w)
