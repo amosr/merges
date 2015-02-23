@@ -1,9 +1,80 @@
 {-# LANGUAGE TemplateHaskell #-}
 import TH
+import Data.IORef
 
-foo :: Source Int -> Sink Int -> IO ()
-foo from to =
- $$(comb [||let x  = Read from
-                x' = Map (+1) x
-                _  = When x' to
-            in () ||])
+pull_file :: String -> IO (IO (Maybe String))
+pull_file nm
+ = do   file <- readFile nm
+        ls' <- newIORef (lines file)
+        let pull
+             = do   i <- readIORef ls'
+                    case i of
+                     [] -> return Nothing
+                     (i:is)
+                        -> writeIORef ls' is >> return (Just i)
+        return pull
+
+main :: IO ()
+main 
+ = do pull_accounts <- pull_file "egs/eg_accounts.txt"
+      pull_loans    <- pull_file "egs/eg_loans.txt"
+      $$(comb [||let as     = Read pull_accounts
+                     ls     = Read pull_loans
+
+                     -- parse the input records
+                     as'    = Map read_account  as
+                     ls'    = Map read_loan     ls
+                     
+                     -- inject input..
+                     as''   = Map left          as'
+                     ls''   = Map right         ls'
+
+                     -- merge
+                     all    = Merge as'' ls''
+
+                     join   = GroupBy sum_account all
+
+                     join'  = Filter both_just join
+                     join'' = Map    get_just  join'
+
+                     arrears= Filter ((<0).amount) join''
+                     offers = Filter ((>5000).amount) join''
+
+                     _  = When arrears send_arrears_email
+                     _  = When offers  send_loan_offer
+                 in () ||])
+ where
+  send_arrears_email b = putStrLn  ("NAUGHTY BOY: " ++ show b) 
+  send_loan_offer    b = putStrLn  ("my best friend: " ++ show b) 
+
+  right (a,b) = (a, (Nothing, Just b))
+  left  (a,b) = (a, (Just b, Nothing))
+
+  sum_account (ln,ll) (rn,rr)
+   = ( case (ln, rn) of
+        (Just n, _) -> Just n
+        (_, Just n) -> Just n
+        (_, _)      -> Nothing
+     , case (ll, rr) of
+        (Just l, Just r) -> Just (l+r)
+        (Just l, _)      -> Just l
+        (_,      Just r) -> Just r
+        (_, _)           -> Nothing
+        )
+
+  both_just (a,(Just _, Just _))
+    = True
+  both_just _
+    = False
+
+  get_just (a,(Just b, Just c))
+   = (a, b, c)
+
+  amount (a,b,c) = c
+
+  read_account :: String -> (Int,String)
+  read_account = read
+
+  read_loan :: String -> (Int,Int)
+  read_loan = read
+
