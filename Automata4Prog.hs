@@ -33,20 +33,27 @@ fuse_all ms
   go (Machine' a : ms)
    = case go ms of
       Right (Machine' b)
-       | (_,oa) <- freevars a
+       -- out of a is used by second machine, and the machines do not share inputs
+       | (ia,oa) <- freevars a
+       , (ib,ob) <- freevars b
        , S.size oa == 1
-       , Just (oa', _) <- S.minView oa
-       , oa' `S.member` fst (freevars b)
+       , Just (outa, _) <- S.minView oa
+       , outa `S.member` ib
+       , S.null (ia `S.intersection` ib)
        -> case fuseV b a of
            Left r -> Left (show r)
            Right m' -> Right $ Machine' $ minimise m'
-       | (_,ob) <- freevars b
+
+       | (ia,oa) <- freevars a
+       , (ib,ob) <- freevars b
        , S.size ob == 1
-       , Just (ob', _) <- S.minView ob
-       , ob' `S.member` fst (freevars a)
+       , Just (outb, _) <- S.minView ob
+       , outb `S.member` ia
+       , S.null (ia `S.intersection` ib)
        -> case fuseV a b of
            Left r -> Left (show r)
            Right m' -> Right $ Machine' $ minimise m'
+
        | otherwise
        -> case fuse a b of
            Left r -> Left (show r)

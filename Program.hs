@@ -1,5 +1,6 @@
 {-# LANGUAGE GADTs, ExistentialQuantification #-}
 module Program where
+import Data.IORef
 
 -- TODO: move to explicit state
 -- (s, s -> IO (Maybe a))
@@ -22,4 +23,17 @@ type Sink a
 
 data When a
  = When (Comb a) (Sink a)
+
+
+pull_file :: String -> IO (Source String)
+pull_file nm
+ = do   file <- readFile nm
+        ls' <- newIORef (lines file)
+        let pull
+             = do   i <- readIORef ls'
+                    case i of
+                     [] -> return Nothing
+                     (i:is)
+                        -> writeIORef ls' is >> return (Just i)
+        return pull
 

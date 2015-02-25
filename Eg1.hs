@@ -1,18 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
 import TH
-import Data.IORef
-
-pull_file :: String -> IO (IO (Maybe String))
-pull_file nm
- = do   file <- readFile nm
-        ls' <- newIORef (lines file)
-        let pull
-             = do   i <- readIORef ls'
-                    case i of
-                     [] -> return Nothing
-                     (i:is)
-                        -> writeIORef ls' is >> return (Just i)
-        return pull
 
 main :: IO ()
 main 
