@@ -7,7 +7,7 @@ main
       pull_ys       <- pull_file "egs/zip1.txt"
       $$(comb [||let xs     = Map readI (Read pull_xs)
                      ys     = Map readI (Read pull_ys)
-                     
+
                      xs'    = Filter (>0) xs
                      ys'    = Filter (<0) ys
                      zz     = Zip xs' ys'

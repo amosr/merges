@@ -28,11 +28,11 @@ main
                      offers = Filter ((>5000).amount) join''
 
                      _  = When arrears send_arrears_email
-                     _  = When offers  send_loan_offer
+                     _  = When offers  raise_credit_limit
                  in () ||])
  where
   send_arrears_email b = putStrLn  ("NAUGHTY BOY: " ++ show b) 
-  send_loan_offer    b = putStrLn  ("my best friend: " ++ show b) 
+  raise_credit_limit b = putStrLn  ("my best friend: " ++ show b) 
 
   right (a,b) = (a, (Nothing, Just b))
   left  (a,b) = (a, (Just b, Nothing))
