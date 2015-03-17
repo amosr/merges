@@ -37,6 +37,23 @@ data Functions f
  , f_uncurry :: f -> f -- (a -> b -> c) -> (a,b) -> c
  }
 
+functions_string :: Functions String
+functions_string
+ = Functions
+ { f_pair = "pair"
+ , f_fst  = "fst"
+ , f_snd  = "snd"
+ , f_id   = "id"
+ , f_onfst= ("fst "++)
+ , f_apsnd= ("snd "++)
+ , f_eq   = "=="
+ , f_le   = "<="
+ , f_lt   = "<"
+ , f_pair0= "pair0"
+ , f_plus1= "(+1)"
+ , f_fsts = ("fsts "++)
+ , f_uncurry = ("uncurry "++)
+ }
 
 
 empty_a :: Machine Int n f
@@ -56,13 +73,15 @@ zip_a f ina inb out
  = Machine
  { _init = 0
  , _trans = M.fromList
- $ [ (0, Pull ina 1 999)
+ $ [ (0, Pull ina 1 998)
    , (1, Pull inb 2 990)
    , (2, Out  (Function (f_pair f) out [ina,inb]) 3)
    , (3, Release ina 4)
    , (4, Release inb 0)
 
-   , (990, Release ina 999)
+   , (990, Release ina 997)
+   , (997, Close ina 999)
+   , (998, Close inb 999)
    , (999, OutFinished out 1000)
    , (1000, Done) ]
  }

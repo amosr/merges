@@ -44,6 +44,9 @@ data Transition label name fun
  -- This signifies that this machine is finished using the buffered value, and allows a new one to be pulled.
  -- In the case of fusing machines, this allows another machine to now pull from this input.
  | Release name        label
+ -- | A named input may still have data, but we will not read it.
+ -- For fusion, this means that the other machine now has full control over pulling this.
+ | Close   name        label
  -- | Update the local output state, using given information.
  | Update (Function name fun) label
  -- | If based on given values and state
@@ -64,6 +67,7 @@ mapT f t
  = case t of
     Pull n l1 l2    -> Pull n (f l1) (f l2)
     Release n l1    -> Release n (f l1)
+    Close   n l1    -> Close   n (f l1)
     Update f' l1    -> Update f' (f l1)
     If f' l1 l2     -> If f' (f l1) (f l2)
     Out f' l1       -> Out f' (f l1)
@@ -83,6 +87,7 @@ data Sigma name fun
  = SPullSome name
  | SPullNone name
  | SRelease name
+ | SClose   name
  | SUpdate  (Function name fun)
  | SIfTrue  (Function name fun)
  | SIfFalse (Function name fun)
@@ -99,6 +104,8 @@ is_predecessor l t
      -> ifeq l1 (SPullSome n) ++ ifeq l2 (SPullNone n)
     Release n l1
      -> ifeq l1 (SRelease n)
+    Close   n l1
+     -> ifeq l1 (SClose n)
     Update f l1
      -> ifeq l1 (SUpdate f)
     If f l1 l2
@@ -152,6 +159,11 @@ ppr_machine m
    =  "release " ++ show ss ++ "\n"
    ++ "     goto " ++ lbl l ++ "\n"
 
+  ppr_t (Close ss l)
+   =  "close   " ++ show ss ++ "\n"
+   ++ "     goto " ++ lbl l ++ "\n"
+
+
   ppr_t (Update f l)
    =  show (_state f) ++ "_s = " ++ ppr_f f ++ "\n"
    ++ "     goto " ++ lbl l ++ "\n"
@@ -194,6 +206,8 @@ freevars m
    = (S.singleton n, S.empty)
   get (Release n _)
    = (S.singleton n, S.empty)
+  get (Close n _)
+   = (S.singleton n, S.empty)
   get (Update f _)
    = get_f f
   get (If f _ _)
@@ -218,6 +232,111 @@ data Event name
  -- | This stream is finished
  | Finished  name
  deriving (Eq,Ord,Show)
+
+
+data CheckError l n
+ = CheckNoSuchLabel l
+ | CheckPullWithoutRelease l n
+ | CheckReleaseOfNonValue  l n
+ | CheckCloseWithoutRelease l n
+ | CheckFunArgsOfNonValue l [n]
+ | CheckOutFinishedAlreadyFinished l n
+ | CheckDoneNotFinished l (S.Set (Event n))
+ | CheckNotMatching l (S.Set (Event n)) (S.Set (Event n))
+ deriving Show
+
+check_machine :: (Ord name, Ord l) => Machine l name fun -> Either (CheckError l name) (M.Map l (S.Set (Event name)))
+check_machine m
+ = check_state (_init m) (M.singleton (_init m) S.empty)
+ where
+  check_state l acc
+   | Just t <- M.lookup l (_trans m)
+   , Just s <- M.lookup l acc
+   = case t of
+      Pull n l1 l2
+       | not $ Value    n `S.member` s
+       , not $ Finished n `S.member` s
+       -> go l1 (S.insert (Value n) s) acc >>= go l2 (S.insert (Finished n) s)
+       | otherwise
+       -> Left (CheckPullWithoutRelease l n)
+
+      Release n l'
+       | Value n `S.member` s
+       -> go l' (S.delete (Value n) s)
+          acc
+       | otherwise
+       -> Left (CheckReleaseOfNonValue l n)
+
+      Close   n l'
+       | not $ Value n `S.member` s
+       -> go l' (S.insert (Finished n) s)
+          acc
+       | otherwise
+       -> Left (CheckCloseWithoutRelease l n)
+
+      Update f l'
+       | all (`S.member` s) (fvs f)
+       -> go l' s acc
+       | otherwise
+       -> Left (CheckFunArgsOfNonValue l (_inputs f))
+
+      If f l1 l2
+       | all (`S.member` s) (fvs f)
+       -> go l1 s acc >>= go l2 s
+       | otherwise
+       -> Left (CheckFunArgsOfNonValue l (_inputs f))
+
+      Out f l'
+       | all (`S.member` s) (fvs f)
+       -> go l' (S.insert (Value (_state f)) s) acc
+       | otherwise
+       -> Left (CheckFunArgsOfNonValue l (_inputs f))
+
+      OutFinished n l'
+       | not $ Finished n `S.member` s
+       -> go l' (S.insert (Finished n) s) acc
+       | otherwise
+       -> Left (CheckOutFinishedAlreadyFinished l n)
+
+      Skip l'
+       -> go l' s acc
+
+      Done
+       | all (\n -> Finished n `S.member` s) 
+       $ S.toList
+       $ S.union inputs outputs
+       -> Right acc
+       | otherwise
+       -> Left (CheckDoneNotFinished l s)
+
+
+   | otherwise
+   = Left (CheckNoSuchLabel l)
+
+  fvs f
+   = map Value
+   $ filter (/= _state f)
+   $ _inputs f
+
+  go l s m
+   | Just s' <- M.lookup l m
+   = let sI  = S.intersection s s'
+         sD  = S.difference   s s'
+     -- Allow 
+     in  if         s == s'
+         then       Right m
+         else if    all is_output (S.toList sD)
+         then       check_state l (M.insert l sI m)
+         else       Left (CheckNotMatching l s s')
+   | otherwise
+   = check_state l (M.insert l s m)
+
+  inputs  = fst $ freevars m
+  outputs = snd $ freevars m
+
+  is_output (Value n) = n `S.member` outputs
+  is_output (Finished _) = False
+
 
 -- | The resulting label type of fusing two machines.
 data L' l1 l2 name
@@ -573,6 +692,7 @@ minimise_skips m
 
       Pull n l1 l2      -> Just $ Pull n (to l1) (to l2)
       Release n l       -> Just $ Release n (to l)
+      Close   n l       -> Just $ Close   n (to l)
       Update f l        -> Just $ Update f (to l)
       If f l1 l2        -> Just $ If f (to l1) (to l2)
       Out f l           -> Just $ Out f (to l)
@@ -656,6 +776,7 @@ partition_by m cs
    = case t of
       Pull n l1 l2      -> Pull n (ix l1) (ix l2)
       Release n l1      -> Release n (ix l1)
+      Close   n l1      -> Close   n (ix l1)
       Update f l1       -> Update f (ix l1)
       If f l1 l2        -> If f (ix l1) (ix l2)
       Out f l1          -> Out f (ix l1)
