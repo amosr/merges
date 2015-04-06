@@ -133,6 +133,28 @@ preds m l
   go (l',t)
    = map (\t -> (l',t)) (is_predecessor l t)
 
+succs :: Transition label name fun -> [(label, Sigma name fun)]
+succs t
+ = case t of
+    Pull n l1 l2
+     -> [(l1, SPullSome n), (l2, SPullNone n)]
+    Release n l
+     -> [(l, SRelease n)]
+    Close n l
+     -> [(l, SClose n)]
+    Update f l
+     -> [(l, SUpdate f)]
+    If f l1 l2
+     -> [(l1, SIfTrue f), (l2, SIfTrue f)]
+    Out f l
+     -> [(l, SOut f)]
+    OutFinished n l
+     -> [(l, SOutFinished n)]
+    Skip l
+     -> [(l, SSkip)]
+    Done
+     -> []
+
 
 -- | Pretty print a machine as an ugly goto program
 ppr_machine :: (Ord label, Show label, Show name, Show fun) => Machine label name fun -> String
@@ -231,111 +253,9 @@ data Event name
  = Value name
  -- | This stream is finished
  | Finished  name
+ -- | An input stream has been closed before it is finished
+ | Closed name
  deriving (Eq,Ord,Show)
-
-
-data CheckError l n
- = CheckNoSuchLabel l
- | CheckPullWithoutRelease l n
- | CheckReleaseOfNonValue  l n
- | CheckCloseWithoutRelease l n
- | CheckFunArgsOfNonValue l [n]
- | CheckOutFinishedAlreadyFinished l n
- | CheckDoneNotFinished l (S.Set (Event n))
- | CheckNotMatching l (S.Set (Event n)) (S.Set (Event n))
- deriving Show
-
-check_machine :: (Ord name, Ord l) => Machine l name fun -> Either (CheckError l name) (M.Map l (S.Set (Event name)))
-check_machine m
- = check_state (_init m) (M.singleton (_init m) S.empty)
- where
-  check_state l acc
-   | Just t <- M.lookup l (_trans m)
-   , Just s <- M.lookup l acc
-   = case t of
-      Pull n l1 l2
-       | not $ Value    n `S.member` s
-       , not $ Finished n `S.member` s
-       -> go l1 (S.insert (Value n) s) acc >>= go l2 (S.insert (Finished n) s)
-       | otherwise
-       -> Left (CheckPullWithoutRelease l n)
-
-      Release n l'
-       | Value n `S.member` s
-       -> go l' (S.delete (Value n) s)
-          acc
-       | otherwise
-       -> Left (CheckReleaseOfNonValue l n)
-
-      Close   n l'
-       | not $ Value n `S.member` s
-       -> go l' (S.insert (Finished n) s)
-          acc
-       | otherwise
-       -> Left (CheckCloseWithoutRelease l n)
-
-      Update f l'
-       | all (`S.member` s) (fvs f)
-       -> go l' s acc
-       | otherwise
-       -> Left (CheckFunArgsOfNonValue l (_inputs f))
-
-      If f l1 l2
-       | all (`S.member` s) (fvs f)
-       -> go l1 s acc >>= go l2 s
-       | otherwise
-       -> Left (CheckFunArgsOfNonValue l (_inputs f))
-
-      Out f l'
-       | all (`S.member` s) (fvs f)
-       -> go l' (S.insert (Value (_state f)) s) acc
-       | otherwise
-       -> Left (CheckFunArgsOfNonValue l (_inputs f))
-
-      OutFinished n l'
-       | not $ Finished n `S.member` s
-       -> go l' (S.insert (Finished n) s) acc
-       | otherwise
-       -> Left (CheckOutFinishedAlreadyFinished l n)
-
-      Skip l'
-       -> go l' s acc
-
-      Done
-       | all (\n -> Finished n `S.member` s) 
-       $ S.toList
-       $ S.union inputs outputs
-       -> Right acc
-       | otherwise
-       -> Left (CheckDoneNotFinished l s)
-
-
-   | otherwise
-   = Left (CheckNoSuchLabel l)
-
-  fvs f
-   = map Value
-   $ filter (/= _state f)
-   $ _inputs f
-
-  go l s m
-   | Just s' <- M.lookup l m
-   = let sI  = S.intersection s s'
-         sD  = S.difference   s s'
-     -- Allow 
-     in  if         s == s'
-         then       Right m
-         else if    all is_output (S.toList sD)
-         then       check_state l (M.insert l sI m)
-         else       Left (CheckNotMatching l s s')
-   | otherwise
-   = check_state l (M.insert l s m)
-
-  inputs  = fst $ freevars m
-  outputs = snd $ freevars m
-
-  is_output (Value n) = n `S.member` outputs
-  is_output (Finished _) = False
 
 
 -- | The resulting label type of fusing two machines.
