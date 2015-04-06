@@ -1,6 +1,7 @@
 -- Special case for vertical fusion
 module Automata4V where
 import Automata4
+import Automata4Merge
 
 import qualified Data.Set as S
 import qualified Data.Map as M

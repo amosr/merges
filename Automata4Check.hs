@@ -1,3 +1,4 @@
+-- Invariant checking of machines
 module Automata4Check where
 import Automata4
 

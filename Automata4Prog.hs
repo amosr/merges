@@ -1,8 +1,10 @@
 {-# LANGUAGE GADTs, ExistentialQuantification, TypeOperators, DataKinds, KindSignatures, RankNTypes, StandaloneDeriving, ScopedTypeVariables #-}
 module Automata4Prog where
 import Automata4
-import Automata4V
 import Automata4Coms
+import Automata4Merge
+import Automata4Min
+import Automata4V
 import Data.List (permutations)
 
 import qualified Data.Set as S

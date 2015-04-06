@@ -2,10 +2,6 @@ module Automata4Coms where
 import Automata4
 import qualified Data.Map as M
 
--- | Just for testing
-data Names = A | B | C | D | E | U | V | W | X | Y | Z
- deriving (Show, Eq, Ord)
-
 -- | THE FUNCTIONS WE NEED
 data Functions f
  = Functions
