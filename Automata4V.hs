@@ -23,8 +23,11 @@ data L'V l1 l2
 --
 -- If these preconditions do not hold, this function will produce an incorrect machine; use general fuse instead.
 -- If these conditions hold, we can use a simpler, specialised fusion algorithm.
+--
 -- Basically, we start by executing M1, and whenever M2's output is read, we swap to M2 until an output is made, then swapping back to M1.
 -- Sometimes the general one can get confused and generate too many states.
+--
+-- (We also need to remove releases, closes and so on of the output state)
 fuseV :: (Ord l1, Ord l2, Ord name) => Machine l1 name f -> Machine l2 name f -> Either (MergeError l1 l2 name f) (Machine (L'V l1 l2) name f)
 fuseV m1 m2
  = do   trans <- go init M.empty
@@ -48,6 +51,13 @@ fuseV m1 m2
       Pull ina l1Y l1N
        | ina `S.member` out2
        -> insert m l (Skip (L'V l1 l2 M'2))
+      Release ina l'
+       | ina `S.member` out2
+       -> insert m l (Skip (L'V l' l2 M'1))
+      Close ina l'
+       | ina `S.member` out2
+       -- TODO close all of m2's inputs
+       -> insert m l (Skip (L'V l' l2 M'1))
       _
        -> insert m l (mapT (\l1' -> L'V l1' l2 M'1) t1)
    | M'2 <- m1or2
@@ -66,11 +76,14 @@ fuseV m1 m2
        -> insert m l (mapT (\l2' -> L'V l1 l2' M'2) t2)
 
    | otherwise
-   = Left (ErrorBadTransition l1 l2)
+   = Left (ErrorBadTransitionV l1 l2)
 
   insert m l t@(Pull _ lY lN)
    = do m' <- go lY (M.insert l t m)
         go lN m'
+  insert m l t@(Close _ l')
+   = go l'
+   $ M.insert l t m
   insert m l t@(Release _ l')
    = go l'
    $ M.insert l t m

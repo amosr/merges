@@ -245,7 +245,8 @@ freevars m
    = (S.empty, S.empty)
 
   get_f f
-   = (S.fromList $ _inputs f, S.singleton $ _state f)
+   -- = (S.fromList $ _inputs f, S.singleton $ _state f)
+   = (S.empty, S.singleton $ _state f)
 
 
 -- | Pending events that have not been dealt with by one of the machines

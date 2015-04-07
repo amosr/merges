@@ -34,7 +34,9 @@ main
   send_arrears_email b = putStrLn  ("NAUGHTY BOY: " ++ show b) 
   raise_credit_limit b = putStrLn  ("my best friend: " ++ show b) 
 
+  right :: (Int,Int) -> (Int,(Maybe String, Maybe Int))
   right (a,b) = (a, (Nothing, Just b))
+  left :: (Int,String) -> (Int,(Maybe String, Maybe Int))
   left  (a,b) = (a, (Just b, Nothing))
 
   sum_account (ln,ll) (rn,rr)

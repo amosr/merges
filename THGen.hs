@@ -75,6 +75,8 @@ generate (Machine' m) sources_sinks
 
       Release _ goto
        -> return $ app_args id (VarE (lbls M.! goto)) bufs stns
+      Close _ goto
+       -> return $ app_args id (VarE (lbls M.! goto)) bufs stns
 
       Update (Function f out ins) goto
        | sn <- stns M.! out

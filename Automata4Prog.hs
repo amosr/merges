@@ -1,6 +1,7 @@
 {-# LANGUAGE GADTs, ExistentialQuantification, TypeOperators, DataKinds, KindSignatures, RankNTypes, StandaloneDeriving, ScopedTypeVariables #-}
 module Automata4Prog where
 import Automata4
+import Automata4Check
 import Automata4Coms
 import Automata4Merge
 import Automata4Min
@@ -33,8 +34,13 @@ fuse_all ms
   go [m]
    = Right m
   go (Machine' a : ms)
+   | Left e <- check_machine a
+   = Left ("Error: input machine no good: " ++ show e ++ "\n" ++ ppr_machine a)
+   | otherwise
    = case go ms of
       Right (Machine' b)
+       | Left e <- check_machine b
+       -> Left ("Error: result machine no good: " ++ show e ++ "\n" ++ ppr_machine b)
        -- out of a is used by second machine, and the machines do not share inputs
        | (ia,oa) <- freevars a
        , (ib,ob) <- freevars b
