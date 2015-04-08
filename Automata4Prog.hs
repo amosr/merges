@@ -21,13 +21,14 @@ fuse_all :: forall name f. (Ord name, Show name, Show f, Eq f) => [Machine' name
 fuse_all ms
  = first_just
  $ map go
- -- $ permutations
+ $ permutations ms
+ -- [ ms ]
  -- TODO: the thing left here is that we want to walk the dag, and only fuse "related things" to start with.
  -- there's no point fusing machines for "x = map c" and "y = map d" together
  -- because we don't know whether to compute Xs then Ys, or Ys then Xs, or both interleaved.
  -- so instead we would fuse those two vertical chains, then only once we see a machine
  -- that uses both, fuse them all together.
- [ ms ]
+
  where
   go []
    = Left "No machines"
@@ -41,24 +42,14 @@ fuse_all ms
       Right (Machine' b)
        | Left e <- check_machine b
        -> Left ("Error: result machine no good: " ++ show e ++ "\n" ++ ppr_machine b)
-       -- out of a is used by second machine, and the machines do not share inputs
-       | (ia,oa) <- freevars a
-       , (ib,ob) <- freevars b
-       , S.size oa == 1
-       , Just (outa, _) <- S.minView oa
-       , outa `S.member` ib
-       , S.null (ia `S.intersection` ib)
-       -> case fuseV b a of
+
+       | canvert a b
+       -> case fuseV a b of
            Left r -> Left (show r)
            Right m' -> Right $ Machine' $ minimise m'
 
-       | (ia,oa) <- freevars a
-       , (ib,ob) <- freevars b
-       , S.size ob == 1
-       , Just (outb, _) <- S.minView ob
-       , outb `S.member` ia
-       , S.null (ia `S.intersection` ib)
-       -> case fuseV a b of
+       | canvert b a
+       -> case fuseV b a of
            Left r -> Left (show r)
            Right m' -> Right $ Machine' $ minimise m'
 
@@ -77,6 +68,19 @@ fuse_all ms
    = Right n
   first_just (_ : rs)
    = first_just rs
+
+  canvert a b
+   | (ia,oa) <- freevars a
+   , (ib,ob) <- freevars b
+   , S.size ob == 1
+   -- , S.size oa == 1
+   , S.size ia == 1
+   , Just (outb, _) <- S.minView ob
+   , outb `S.member` ia
+   , S.null (ia `S.intersection` ib)
+   = False -- True
+   | otherwise
+   = False
 
   -- fuse' :: forall s1 s2. (Show s1, Ord s1, Show s2, Ord s2) => Machine s1 name -> Machine s2 name -> Program name -> Maybe (Machine' name)
   -- fuse' m1 m2 p

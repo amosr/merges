@@ -72,6 +72,8 @@ generate (Machine' m) sources_sinks
                             $(return $ app_args id (VarE $ lbls M.! full) bufs stns)
                      Nothing
                       -> $(return $ app_args id (VarE $ lbls M.! empty) bufs stns)|]
+       | otherwise
+       -> error ("THGen.mktrans: unable to pull from " ++ show from ++ "!")
 
       Release _ goto
        -> return $ app_args id (VarE (lbls M.! goto)) bufs stns
