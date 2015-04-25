@@ -78,7 +78,7 @@ fuse_all ms
    , Just (outb, _) <- S.minView ob
    , outb `S.member` ia
    , S.null (ia `S.intersection` ib)
-   = False -- True
+   = True
    | otherwise
    = False
 
