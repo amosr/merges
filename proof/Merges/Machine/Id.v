@@ -58,6 +58,64 @@ Definition stateOf (l : Label) : State IdTypes
     | L2 => Done IdTypes
     end.
 
+Theorem pull_decreases:
+ forall is i j is' o
+  , @pull IdTypes i is = (is', o)
+ -> length (is' j) <= length (is j).
+Proof.
+ intros.
+ induction (is i);
+ unfold pull in *;
+ unfold update in *.
+ injection H; clear H; intros; subst;
+  eauto.
+
+ apply IHl.
+ simpl.
+
+ destruct l; eauto.
+
+ destruct j. destruct i.
+ simpl.
+ 
+ fequal in H.
+congruence H.
+
+(* no state can increase the length *) 
+Definition state_maybe_decreasing
+ := forall l is os e l' is' os' e',
+  @run1 IdTypes stateOf (l, is, os, e) = (l', is', os', e')
+  -> forall i, length (is' i) <= length (is i).
+
+Theorem smd : state_maybe_decreasing.
+Proof.
+ unfold state_maybe_decreasing.
+ intros.
+
+ destruct i.
+
+ destruct l; simpl in H.
+ unfold pull in *. unfold update in *.
+  destruct i.
+ destruct (is Input_).
+ assert (is = is') by congruence.
+ rewrite <- H0. eauto.
+ unfold update in *.
+ simpl.
+ eauto.
+ destruct o.
+ destruct (@pull IdTypes Input_ is). destruct o.
+ eauto.
+
+(* if we can get from L back to L, something must be smaller *)
+Definition loop_decreasing
+ := forall l is os e is' os' e',
+  @runs IdTypes stateOf (l, is, os, e) (l, is', os', e')
+  -> forall i, length (is' i) < length (is i).
+
+
+
+
 (* Does it terminate for all states? *)
 (*
 Lemma termination_all: @terminates_all_states IdTypes stateOf.

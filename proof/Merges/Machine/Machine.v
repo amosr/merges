@@ -141,8 +141,11 @@ Section Machine.
  Definition push (o : output t) (v : val t) (os : Outputs) : Outputs
   := update _ _ (outputEqDec t) o (v :: os o) os.
 
+ 
+ (* What is a better name? The actual evaluation state of running a machine *)
  Definition STATE := (label t * Inputs * Outputs * Env)%type.
 
+ (* Single-step semantics *)
  Definition run1 (r : STATE) : STATE
   := match r with
      (l, is, os, e)
@@ -154,18 +157,23 @@ Section Machine.
            | (is', Some v)
            => (lT, is', os, update _ _ VarEqDec (VInput i) v e)
            end
+
         | Release i l'
         => (l', is, os, e)
+
         | Close   i l'
         => (l', is, os, e)
+
         
         | Out o f l'
         => let v   := f e              in
            let os' := push o v os      in
            let e'  := update _ _ VarEqDec (VOutput o) v e
            in (l', is, os', e')
+
         | OutDone o l'
         => (l', is, os, e)
+
         
         | If p lT lF
         => if   p e
@@ -177,7 +185,8 @@ Section Machine.
 
         | Skip l'
         => (l', is, os, e)
-
+        
+        (* I'm not sure about this; should return type be option & return none? *)
         | Done
         => (l, is, os, e)
 
@@ -185,19 +194,29 @@ Section Machine.
      end.
 
 
+ (* We define a sequence of *non-empty* evaluation steps.
+    If the machine is done, it can still have a non-empty evaluation sequence.
+    But if the machine is not done, a non-empty evaluation sequence must
+    actually change something. *)
  Inductive runs : STATE -> STATE -> Prop
- := RunDone   : forall l is os e
-              , stateOf l = Done
-             -> runs (l,is,os,e) (l,is,os,e)
-  | Run1      : forall s s'
+ := Run1      : forall s
+              , runs s (run1 s)
+  | RunN      : forall s s'
               , runs (run1 s) s'
              -> runs s s'.
 
+ (* Execute the whole machine *)
  Inductive exec : Inputs -> Outputs -> Prop
   := Exec     : forall is l' is' os' e'
-              , runs (initial t, is, initialOuts, emptyEnv)
+              , stateOf l' = Done
+             -> runs (initial t, is, initialOuts, emptyEnv)
                      (l', is', os', e')
              -> exec is os'.
+
+ (* We want to say that *)
+(* Definition simple_decreasing
+  := forall is l os e,
+
 
  Definition terminates
               := forall is,
@@ -215,5 +234,5 @@ Section Machine.
  (* Termination variant?
     Maybe something about, for each label L, whenever you get back to L
     either lists will be shorter, or some variant on env will be smaller *)
-
+*)
 End Machine.
