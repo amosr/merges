@@ -24,5 +24,24 @@ Section Map.
        then v
        else m k'.
 
+
+ Lemma update_eq_is k v m:
+       update k v m k = v.
+ Proof.
+  unfold update.
+  destruct EqDec_; eauto.
+  destruct n; eauto.
+ Qed.
+
+ Lemma update_ne_is k v m k':
+       k <> k'
+    -> update k v m k' = m k'.
+ Proof.
+  intros.
+  unfold update.
+  destruct EqDec_; eauto.
+  destruct H; eauto.
+ Qed.
+
 End Map.
 

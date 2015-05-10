@@ -133,6 +133,47 @@ Section Machine.
         => (update _ _ (inputEqDec t) i xs is, Some x)
      end.
 
+
+ Theorem pull_decreases:
+  forall is i j is' o
+   , pull  i is = (is', o)
+  -> length (is' j) <= length (is j).
+ Proof.
+  intros.
+  unfold pull in *.
+
+  remember (is i) as inp.
+
+  destruct inp. injects H. eauto.
+  injects H.
+
+  destruct (inputEqDec t i j); subst.
+
+  rewrite update_eq_is.
+  rewrite <- Heqinp. simpl. eauto.
+
+  rewrite update_ne_is; eauto.
+ Qed.
+
+ Theorem pull_strictly_decreases:
+  forall is i is' o
+   , pull  i is = (is', o)
+  -> length (is' i) = length (is i) - 1.
+ Proof.
+  intros.
+  unfold pull in *.
+
+  remember (is i) as inp.
+
+  destruct inp. injects H.
+  rewrite <- Heqinp. eauto.
+
+  injects H.
+  rewrite update_eq_is.
+  simpl. omega.
+ Qed.
+
+
  (* Initially all outputs are empty *)
  Definition initialOuts : Outputs
   := Map.empty _ _ [].
@@ -199,8 +240,9 @@ Section Machine.
     But if the machine is not done, a non-empty evaluation sequence must
     actually change something. *)
  Inductive runs : STATE -> STATE -> Prop
- := Run1      : forall s
-              , runs s (run1 s)
+ := Run1      : forall s t
+              , t = run1 s
+             -> runs s t
   | RunN      : forall s s'
               , runs (run1 s) s'
              -> runs s s'.

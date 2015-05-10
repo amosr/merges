@@ -27,6 +27,9 @@ Ltac bye_in_empty :=
     => inverts H
    end].
 
+Ltac injects H :=
+   injection H; clear H; intros; subst.
+
 (*
 
 Ltac bye_punch_ne :=

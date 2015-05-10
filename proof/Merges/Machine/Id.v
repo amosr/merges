@@ -58,28 +58,6 @@ Definition stateOf (l : Label) : State IdTypes
     | L2 => Done IdTypes
     end.
 
-Theorem pull_decreases:
- forall is i j is' o
-  , @pull IdTypes i is = (is', o)
- -> length (is' j) <= length (is j).
-Proof.
- intros.
- induction (is i);
- unfold pull in *;
- unfold update in *.
- injection H; clear H; intros; subst;
-  eauto.
-
- apply IHl.
- simpl.
-
- destruct l; eauto.
-
- destruct j. destruct i.
- simpl.
- 
- fequal in H.
-congruence H.
 
 (* no state can increase the length *) 
 Definition state_maybe_decreasing
@@ -93,28 +71,25 @@ Proof.
  intros.
 
  destruct i.
-
  destruct l; simpl in H.
- unfold pull in *. unfold update in *.
-  destruct i.
- destruct (is Input_).
- assert (is = is') by congruence.
- rewrite <- H0. eauto.
- unfold update in *.
- simpl.
- eauto.
- destruct o.
- destruct (@pull IdTypes Input_ is). destruct o.
- eauto.
+
+ remember (@pull IdTypes Input_ is) as Pull.
+ destruct Pull as [isis o];
+ destruct o; injects H;
+ eapply pull_decreases; eauto.
+
+ injects H; eauto.
+ injects H; eauto.
+Qed.
+
 
 (* if we can get from L back to L, something must be smaller *)
 Definition loop_decreasing
  := forall l is os e is' os' e',
   @runs IdTypes stateOf (l, is, os, e) (l, is', os', e')
-  -> forall i, length (is' i) < length (is i).
+  -> length (is' Input_) < length (is Input_).
 
-
-
+ 
 
 (* Does it terminate for all states? *)
 (*
