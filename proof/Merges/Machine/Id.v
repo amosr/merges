@@ -58,38 +58,29 @@ Definition stateOf (l : Label) : State IdTypes
     | L2 => Done IdTypes
     end.
 
+Definition lengthOfState (s : STATE IdTypes)
+ := match s with
+   | (_, is, _, _) => length (is Input_)
+  end.
 
-(* no state can increase the length *) 
-Definition state_maybe_decreasing
- := forall l is os e l' is' os' e',
-  @run1 IdTypes stateOf (l, is, os, e) = (l', is', os', e')
-  -> forall i, length (is' i) <= length (is i).
-
-Theorem smd : state_maybe_decreasing.
+Lemma all_nonincreasing:
+  forall s s'
+    (r :  @runs IdTypes stateOf s s'),
+  runs_all_nonincreasing lengthOfState r.
 Proof.
- unfold state_maybe_decreasing.
  intros.
-
- destruct i.
- destruct l; simpl in H.
-
- remember (@pull IdTypes Input_ is) as Pull.
- destruct Pull as [isis o];
- destruct o; injects H;
- eapply pull_decreases; eauto.
-
- injects H; eauto.
- injects H; eauto.
+ induction r; simpl; state_destruct.
+ sapply* state_maybe_decreasing.
+ split~.
+ sapply* state_maybe_decreasing.
 Qed.
-
 
 (* if we can get from L back to L, something must be smaller *)
 Definition loop_decreasing
  := forall l is os e is' os' e',
   @runs IdTypes stateOf (l, is, os, e) (l, is', os', e')
-  -> length (is' Input_) < length (is Input_).
+  -> forall i, length (is' i) < length (is i).
 
- 
 
 (* Does it terminate for all states? *)
 (*

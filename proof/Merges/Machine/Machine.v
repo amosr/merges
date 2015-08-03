@@ -235,25 +235,168 @@ Section Machine.
      end.
 
 
+ Theorem pull_ne_same:
+  forall is i j is' o
+   , pull i is = (is', o)
+  -> i <> j
+  -> length (is' j) = length (is j).
+ Proof.
+  intros; unfolds pull; unfolds update.
+  destruct (is i); injects~ H.
+  destruct~ (inputEqDec _ i j); contradiction.
+ Qed.
+
+Theorem pull_eq_decreases:
+  forall is i is' o
+   , pull i is = (is', o)
+  -> length (is' i) <= length (is i).
+ Proof.
+  intros.
+  unfolds pull; unfolds update.
+  remember (is i) as is_i; destruct is_i; injects~ H.
+  rewrite Heqis_i; omega.
+  destruct (inputEqDec _ i i); bye_not_eq. simpl; omega.
+ Qed.
+
+ Theorem pull_decreases:
+  forall is i j is' o
+   , pull i is = (is', o)
+  -> length (is' j) <= length (is j).
+ Proof.
+  intros.
+  destruct (inputEqDec _ i j).
+   subst; eapply pull_eq_decreases; eassumption.
+   remember (pull_ne_same is H n); omega.
+ Qed.
+
+
+ Theorem push_ne_same:
+  forall os i j v
+   , i <> j
+  -> length (os i) = length ((push j v os) i).
+ Proof.
+  intros; unfolds push; unfolds update.
+  destruct~ (outputEqDec _ j i).
+   destruct H; eauto.
+ Qed.
+
+ Theorem push_eq_increase:
+  forall os i v
+   , S (length (os i)) = length ((push i v os) i).
+ Proof.
+  intros; unfolds push; unfolds update.
+  destruct~ (outputEqDec _ i i); bye_not_eq.
+ Qed.
+
+ Theorem push_increase:
+  forall os i j v
+   , length (os i) <= length ((push j v os) i).
+ Proof.
+  intros.
+  destruct (outputEqDec _ i j).
+   subst; remember (push_eq_increase os j v); omega.
+   remember (push_ne_same os v n); omega.
+ Qed.
+
+ Theorem state_maybe_decreasing:
+  forall l is os e l' is' os' e'
+   , run1  (l, is, os, e) = (l', is', os', e')
+   -> forall i, length (is' i) <= length (is i).
+ Proof.
+  intros.
+  unfolds run1.
+  destruct (stateOf l);
+    try destruct (f e);
+    try injects H;
+    eauto.
+  remember (pull i0 is) as pulls.
+  destruct pulls.
+  destruct o; injects H; eapply pull_decreases; symmetry; eauto.
+ Qed.
+
+
  (* We define a sequence of *non-empty* evaluation steps.
     If the machine is done, it can still have a non-empty evaluation sequence.
     But if the machine is not done, a non-empty evaluation sequence must
     actually change something. *)
- Inductive runs : STATE -> STATE -> Prop
- := Run1      : forall s t
-              , t = run1 s
-             -> runs s t
-  | RunN      : forall s s'
-              , runs (run1 s) s'
-             -> runs s s'.
+ Inductive runs : STATE -> STATE -> Type
+ := Run1      : forall s s'
+              , s' = run1 s
+              -> runs s s'
+  | RunN      : forall s s' s''
+              , s' = run1 s
+             -> runs s' s''
+             -> runs s s''.
 
  (* Execute the whole machine *)
- Inductive exec : Inputs -> Outputs -> Prop
+ Inductive exec : Inputs -> Outputs -> Type
   := Exec     : forall is l' is' os' e'
               , stateOf l' = Done
              -> runs (initial t, is, initialOuts, emptyEnv)
                      (l', is', os', e')
              -> exec is os'.
+
+ Fixpoint runs_one_decreases
+    (p : STATE -> nat)
+    (s s' : STATE)
+    (r : runs s s') : Prop
+  := match r with
+      | Run1 s1 s2 _
+      => p s2 < p s1
+      | RunN s1 s2 s3 _ r'
+     => (p s2 < p s1) \/ (@runs_one_decreases p _ _ r')
+    end.
+
+ Fixpoint runs_all_nonincreasing
+    (p : STATE -> nat)
+    (s s' : STATE)
+    (r : runs s s') : Prop
+  := match r with
+      | Run1 s1 s2 _
+      => p s2 <= p s1
+      | RunN s1 s2 s3 _ r'
+     => (p s2 <= p s1) /\ (@runs_all_nonincreasing p _ _ r')
+    end.
+
+
+ Theorem runs_nonincreasing:
+    forall (p : STATE -> nat)
+             (s s' : STATE)
+             (r : runs s s')
+     , runs_all_nonincreasing p r
+    -> p s' <= p s.
+  Proof.
+   intros.
+   induction r.
+   eauto.
+   simpl in *.
+   destruct H.
+   apply IHr in H0.
+   omega.
+  Qed.
+
+ Theorem runs_strictly_decreasing:
+    forall (p : STATE -> nat)
+             (s s' : STATE)
+             (r : runs s s')
+     , runs_one_decreases p r
+    -> runs_all_nonincreasing p r
+    -> p s' < p s.
+  Proof.
+   intros.
+   induction r.
+   eauto.
+   simpl in *.
+   destruct H0.
+   destruct H.
+   assert (p s'' <= p s').
+    eapply runs_nonincreasing. eassumption.
+   omega.
+
+   apply IHr in H1.
+   omega.
+   eauto.
+  Qed.
 
  (* We want to say that *)
 (* Definition simple_decreasing
@@ -278,3 +421,18 @@ Section Machine.
     either lists will be shorter, or some variant on env will be smaller *)
 *)
 End Machine.
+
+
+
+  Ltac state_destruct
+   :=  repeat (match goal with
+   | H : STATE _ |- _
+   => let a := fresh "l" in
+        let b := fresh "env" in
+        let c := fresh "os" in
+        let d := fresh "is" in
+        destruct H as [a b];
+        destruct a as [a c];
+        destruct a as [a d]
+   end).
+
