@@ -111,6 +111,19 @@ Section Machine.
  (* Finally, each label needs a state *)
  Variable stateOf : label t -> State.
 
+ Definition outlabels (lO : label t) (s : State) : list (label t)
+   := match s with
+        | Pull _ l1 l2 => [l1;l2]
+        | Release _ l  => [l]
+        | Close   _ l  => [l]
+        | Out _ _ l    => [l]
+        | OutDone _ l  => [l]
+        | If _ l1 l2   => [l1; l2]
+        | Update _ _ l => [l]
+        | Skip  l      => [l]
+        | Done         => [lO]
+      end.
+      
 
 
 
@@ -133,45 +146,6 @@ Section Machine.
         => (update _ _ (inputEqDec t) i xs is, Some x)
      end.
 
-
- Theorem pull_decreases:
-  forall is i j is' o
-   , pull  i is = (is', o)
-  -> length (is' j) <= length (is j).
- Proof.
-  intros.
-  unfold pull in *.
-
-  remember (is i) as inp.
-
-  destruct inp. injects H. eauto.
-  injects H.
-
-  destruct (inputEqDec t i j); subst.
-
-  rewrite update_eq_is.
-  rewrite <- Heqinp. simpl. eauto.
-
-  rewrite update_ne_is; eauto.
- Qed.
-
- Theorem pull_strictly_decreases:
-  forall is i is' o
-   , pull  i is = (is', o)
-  -> length (is' i) = length (is i) - 1.
- Proof.
-  intros.
-  unfold pull in *.
-
-  remember (is i) as inp.
-
-  destruct inp. injects H.
-  rewrite <- Heqinp. eauto.
-
-  injects H.
-  rewrite update_eq_is.
-  simpl. omega.
- Qed.
 
 
  (* Initially all outputs are empty *)
@@ -398,7 +372,29 @@ Theorem pull_eq_decreases:
    eauto.
   Qed.
 
- (* We want to say that *)
+  Theorem run_to_out:
+    forall l l' is is' os os' e e'
+    , (l',is',os',e') = run1 (l,is,os,e)
+    -> In l' (outlabels l (stateOf l)).
+  Proof.
+    intros.
+    unfold run1 in *.
+    remember (stateOf l) as S.
+
+    destruct~ S; try injects H; simpl; eauto.
+    destruct (pull i is);
+    destruct o;
+    injects H; eauto.
+    destruct (f e);
+    injects H;
+    eauto.
+  Qed.
+
+  
+
+
+
+    (* We want to say that *)
 (* Definition simple_decreasing
   := forall is l os e,
 
