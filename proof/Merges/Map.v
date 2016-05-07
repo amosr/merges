@@ -1,16 +1,11 @@
 (* Is this junk in the standard library? *)
+Require Import Merges.Tactics.Stuff.
 
 Section Map.
  Variable K : Type.
  Variable V : Type.
  Definition EqDec  := forall (n m : K), { n = m } + { n <> m }.
  Hypothesis EqDec_ : forall (n m : K), { n = m } + { n <> m }.
-
- Ltac eqdec :=
-  unfold EqDec in *; intros n m;
-  induction n; induction m;
-  try solve [left; congruence];
-  try solve [right; congruence].
 
 
  Definition Map := K -> V.
@@ -45,3 +40,6 @@ Section Map.
 
 End Map.
 
+
+Ltac destroy_eqdecs EQDEC
+ := repeat destruct EQDEC; bye_not_eq.

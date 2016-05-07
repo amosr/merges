@@ -1,5 +1,7 @@
 Require Import Merges.Tactics.LibTactics.
 Require Import Coq.Lists.List.
+Require Export Omega.
+
 Import ListNotations.
 Set Implicit Arguments.
 
@@ -45,3 +47,12 @@ Ltac bye_punch_ne :=
   => rewrite H; intros not; inversion not
  end].
 *)
+
+
+Ltac best_bet :=
+  eauto; try solve [simpl in *; try omega; bye_not_eq; bye_in_empty; congruence].
+
+Tactic Notation "churn_with" tactic(F) :=
+  repeat (F; best_bet; simpl in *).
+
+
