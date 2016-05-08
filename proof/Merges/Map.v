@@ -38,6 +38,10 @@ Section Map.
   destruct H; eauto.
  Qed.
 
+ Axiom MapExtensional : forall (m m' : Map),
+   (forall k, m k = m' k) ->
+   m = m'.
+
 End Map.
 
 

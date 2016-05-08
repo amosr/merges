@@ -81,6 +81,25 @@ Definition loop_decreasing
   @runs IdTypes stateOf (l, is, os, e) (l, is', os', e')
   -> forall i, length (is' i) < length (is i).
 
+(*
+
+Theorem loop_decreasing': loop_decreasing.
+Proof.
+ unfold loop_decreasing; intros.
+Theorem Exec: forall (inp : list nat) os,
+    @exec IdTypes stateOf (fun _ => inp) os
+ -> os Output_ = reverse inp.
+Proof.
+ intros.
+ inductions' X.
+ inductions' r.
+ 
+
+Lemma termination_all:
+              forall l is os e,
+              exists l' is' os' e',
+              @runs IdTypes stateOf (l, is, os, e) (l', is', os', e').
+*)
 
 (* Does it terminate for all states? *)
 (*
