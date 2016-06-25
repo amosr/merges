@@ -30,6 +30,7 @@ start:
 # Build dependencies for Coq proof scripts.
 .PHONY: deps
 deps: make/proof.deps
+	@mkdir -p make
 
 # Find Coq proof scripts
 src_coq_v \

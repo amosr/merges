@@ -315,9 +315,9 @@ Theorem pull_eq_decreases:
     (s s' : STATE)
     (r : runs s s') : Prop
   := match r with
-      | Run1 s1 s2 _
+      | @Run1 s1 s2 _
       => p s2 < p s1
-      | RunN s1 s2 s3 _ r'
+      | @RunN s1 s2 s3 _ r'
      => (p s2 < p s1) \/ (@runs_one_decreases p _ _ r')
     end.
 
@@ -326,9 +326,9 @@ Theorem pull_eq_decreases:
     (s s' : STATE)
     (r : runs s s') : Prop
   := match r with
-      | Run1 s1 s2 _
+      | @Run1 s1 s2 _
       => p s2 <= p s1
-      | RunN s1 s2 s3 _ r'
+      | @RunN s1 s2 s3 _ r'
      => (p s2 <= p s1) /\ (@runs_all_nonincreasing p _ _ r')
     end.
 

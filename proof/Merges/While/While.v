@@ -279,7 +279,7 @@ Module Id'.
   gen h sh.
   induction l; intros.
   - eapply EWhileGo.
-    + eauto.
+    + rewrite~ H.
     + econstructor. econstructor.
       simpl.
       eapply EPullNone.
@@ -299,7 +299,8 @@ Module Id'.
        unfold scalarWrite.
        rewrite update_eq_is. eauto.
   - eapply EWhileGo; eauto.
-    + clear IHl.
+    + rewrite~ H.
+    +  clear IHl.
       econstructor. econstructor.
       eapply EPullSome.
       unfold streamPull.

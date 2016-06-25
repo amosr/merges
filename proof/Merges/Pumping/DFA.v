@@ -172,7 +172,7 @@ Module DFA (Finite_Node Finite_Alpha : Finite).
   destruct (Finite_Node.Eq_T j i).
    remember (split2 w).
    destruct e0 with (i := Transition i a) (j := j) (k := k); best_bet.
-   destruct e1; destructs H1.
+   destruct H1; destructs H1.
    eexists [].
    exists (a ::x) x0; splits; best_bet.
 
