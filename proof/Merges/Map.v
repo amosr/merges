@@ -45,6 +45,9 @@ Section Map.
 
 End Map.
 
+Ltac prove_eqdec
+ := unfold EqDec; intros n m; induction n; destruct m; eauto;
+      try solve [right; intros not; inversion not].
 
 Ltac destroy_eqdecs EQDEC
  := repeat destruct EQDEC; bye_not_eq.

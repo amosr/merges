@@ -10,27 +10,24 @@ Set Implicit Arguments.
 Module Type Var.
  Variable Var   : Set.
  Variable VarEqDec : EqDec Var.
-
- Definition update t := Map.update Var t VarEqDec.
- Hint Unfold update.
-
 End Var.
 
 Module Type Label.
  Variable Label      : Set.
- Variable LabelEqDec : EqDec Label.
 End Label.
 
-Module Program (V : Var) (L : Label).
+Module Goto (V : Var) (L : Label).
+ Section Goto.
   Definition Value := nat.
   Definition Heap := Map V.Var Value.
   Definition Pred := Heap -> Prop.
 
-  Definition predUpdate v f (p : Pred)
-    := fun s => p (V.update v (f (s v)) s).
+  Let varUpdate := Map.update V.Var Value V.VarEqDec.
+  Let predUpdate v f (p : Pred)
+    := fun s => p (varUpdate v (f (s v)) s).
   Hint Unfold predUpdate.
 
-  Definition predImplies (p1 p2 : Pred)
+  Let predImplies (p1 p2 : Pred)
     := forall s, p1 s -> p2 s.
   Hint Unfold predImplies.
 
@@ -41,7 +38,7 @@ Module Program (V : Var) (L : Label).
   .
   Hint Constructors Instr.
 
-  Definition InstrPre (i : Instr) (post : Pred) : Pred :=
+  Let InstrPre (i : Instr) (post : Pred) : Pred :=
    match i with
    | IInc v => predUpdate v (fun n => S n)    post
    | IDec v => predUpdate v (fun n => pred n) post
@@ -79,9 +76,9 @@ Module Program (V : Var) (L : Label).
 
   Inductive EvalI : Heap -> Instr -> Heap -> Prop :=
    | EvalIInc v s
-      : EvalI s (IInc v) (V.update v (S (s v)) s)
+      : EvalI s (IInc v) (varUpdate v (S (s v)) s)
    | EvalIDec v s
-      : EvalI s (IDec v) (V.update v (pred (s v)) s).
+      : EvalI s (IDec v) (varUpdate v (pred (s v)) s).
   Hint Constructors EvalI.
 
   Inductive EvalB : Heap -> L.Label -> Heap -> L.Label -> Prop :=
@@ -148,5 +145,90 @@ Module Program (V : Var) (L : Label).
    induction~ hEvB.
     apply EvalB_Hoare in H; eauto.
   Qed.
+ End Goto.
+End Goto.
 
+Module Type Program (V : Var) (L : Label).
+  Module G := Goto V L.
+  Parameter Blocks : L.Label -> G.Block.
+  Parameter LabelPre  : L.Label -> G.Pred.
+  Conjecture BlocksPre: forall l, G.BlockPre LabelPre l (Blocks l).
 End Program.
+
+Module Nowt (V : Var) (L : Label).
+  Parameter v : V.Var.
+  Module P' <: Program V L.
+    Module G := Goto V L.
+    Definition Blocks (l : L.Label) :=
+      G.BlockJump l (G.IInc v).
+    Definition LabelPre (_ : L.Label) (_ : G.Heap) := True.
+    Theorem BlocksPre : forall l, G.BlockPre LabelPre l (Blocks l).
+      simpls;
+      intros; splits; eauto.
+    Qed.
+  End P'.
+End Nowt.
+
+Print Nowt.
+
+Require Import Coq.Program.Program.
+
+(*
+Module Zero (V : Var) (L : Label) (P : Program V L).
+  Variable var : V.Var.
+  Variable lbl : L.Label.
+  Module L' <: Label.
+    Inductive Label' :=
+      | LOriginal : L.Label -> Label'
+      | LDec
+      | LJmp.
+    Definition Label := Label'.
+  End L'.
+
+  Module P' <: Program V L'.
+    Module G := Goto V L'.
+    Definition Blocks l' :=
+     match l' with
+      | L'.LOriginal l
+      => match P.Blocks l with
+          | P.G.BlockJump ljmp instr
+          => match instr with
+             | P.G.IInc v => G.BlockJump (L'.LOriginal ljmp) (G.IInc v)
+             | P.G.IDec v => G.BlockJump (L'.LOriginal ljmp) (G.IDec v)
+             end
+          | P.G.BlockJZ v lz lnz => G.BlockJZ v (L'.LOriginal lz) (L'.LOriginal lnz)
+          | P.G.BlockExit => G.BlockExit
+         end
+      | L'.LDec => G.BlockJump L'.LJmp (G.IDec var)
+      | L'.LJmp => G.BlockJZ var (L'.LOriginal lbl) L'.LJmp
+     end.
+
+    Definition LabelPre l' :=
+     match l' with
+     | L'.LOriginal l => P.LabelPre l
+     | L'.LJmp => 
+  End P'.
+End Zero.
+
+  Variable zeroVar : V.Var.
+  Variable goto : L.Label.
+
+  
+
+
+Module Plus2.
+  Module Var <: Var.
+    Inductive Var' := VIn1 | VIn2 | VOut.
+    Definition Var := Var'.
+    Definition VarEqDec : EqDec Var.
+    Proof. prove_eqdec. Qed.
+    Definition update t := Map.update Var t VarEqDec.
+  End Var.
+
+  Module Label <: Label.
+    Inductive Var' := VIn1 | VIn2 | VOut.
+    Definition Var := Var'.
+    Definition VarEqDec : EqDec Var.
+    Proof. prove_eqdec. Qed.
+    Definition update t := Map.update Var t VarEqDec.
+    *)
