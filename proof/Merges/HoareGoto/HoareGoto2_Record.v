@@ -6,6 +6,8 @@ Require Import Merges.List.List.
 Require Import Coq.Lists.List.
 Import ListNotations.
 Set Implicit Arguments.
+Require Import Coq.Logic.FunctionalExtensionality.
+
 
 Module Base.
 Section Goto.
@@ -167,6 +169,9 @@ Section Functor.
    | BlockExit _ _    => BlockExit _ _
    end.
 
+  Theorem Heap_comap_V {A B : Set} (f : B -> A) (h : Heap A) : Heap B.
+    unfolds Heap; unfolds Map; eauto.
+  Defined.
 
   Theorem Pred_map_V {A B : Set}
       (f : A -> B)
@@ -189,6 +194,11 @@ Module Program.
    ; BlocksPre: (forall l : Label, B.BlockPre VarEqDec LabelPre l (Blocks l))
    }.
 
+ Theorem LabelPre_rewrite V L (P : Program V L) l H H' :
+    LabelPre P l H
+  -> H' = H
+  -> LabelPre P l H'.
+ Proof. intros. subst. eauto. Qed.
 End Program.
 
 
@@ -264,9 +274,6 @@ Module Seq.
    | L'2 l2 => P.LabelPre P2 l2
    end.
 
- Axiom EqDecExtensional : forall (A : Set) (m m' : EqDec A),
-   m = m'.
-
   Program Definition r := {| P.VarEqDec := P.VarEqDec P1; P.Blocks := Blocks; P.LabelPre := LabelPre |}.
   Next Obligation.
     destruct l; eauto.
@@ -287,12 +294,123 @@ Module Seq.
     destruct b; simpl; rewrite~ <- Heqb.
 
     clear.
-    apply EqDecExtensional.
+
+    extensionality n.
+    extensionality m.
+
+    apply EqDec_Eq.
    Qed.
 
  End Seq.
 End Seq.
-Check Seq.L'.
+
+
+
+Module Alt.
+ Module P := Program.
+ Section Alt.
+  Variable V1 V2 L1 L2 : Set.
+  Variable P1 : P.Program V1 L1.
+  Variable P2 : P.Program V2 L2.
+  Inductive L' :=
+    | L'1 (l1 : L1) (l2 : L2)
+    | L'2 (l1 : L1) (l2 : L2).
+  Inductive V' := V'1 (v : V1) | V'2 (v : V2).
+
+  Definition Blocks (l : L') :=
+   match l with
+   | L'1 l1 l2
+   => Base.Block_map_L (fun l1' => L'2 l1' l2)
+     (Base.Block_map_V (V'1)
+       (P.Blocks P1 l1))
+
+   | L'2 l1 l2
+   => Base.Block_map_L (fun l2' => L'1 l1 l2')
+     (Base.Block_map_V (V'2)
+       (P.Blocks P2 l2))
+   end.
+
+  Definition PredAnd (p1 : Base.Pred V1) (p2 : Base.Pred V2) : Base.Pred V' :=
+   fun (h : Base.Heap V')
+   => p1 (fun v1 => h (V'1 v1))
+   /\ p2 (fun v2 => h (V'2 v2)).
+
+  Definition LabelPreAnd (l1 : L1) (l2 : L2) : Base.Pred V' :=
+    PredAnd (P.LabelPre P1 l1) (P.LabelPre P2 l2).
+
+  Definition LabelPre (l : L') :=
+   match l with
+   | L'1 l1 l2 => LabelPreAnd l1 l2
+   | L'2 l1 l2 => LabelPreAnd l1 l2
+   end.
+
+  Definition Heapjoin (h1 : Base.Heap V1) (h2 : Base.Heap V2) (v : V') :=
+   match v with
+   | V'1 v1 => h1 v1
+   | V'2 v2 => h2 v2
+   end.
+
+  Theorem LabelPre__LabelPre l1 l2 h1 h2:
+     P.LabelPre P1 l1 h1
+  -> P.LabelPre P2 l2 h2
+  -> PredAnd (P.LabelPre P1 l1) (P.LabelPre P2 l2) (Heapjoin h1 h2).
+  Proof.
+   intros.
+   firstorder.
+  Qed.
+
+
+  Program Definition r := {| P.Blocks := Blocks; P.LabelPre := LabelPre |}.
+  Next Obligation.
+    remember (P.VarEqDec P1).
+    remember (P.VarEqDec P2).
+    decides_equality.
+  Qed.
+  Next Obligation.
+  Ltac SOLVEUPDATE :=
+    eapply P.LabelPre_rewrite; eauto;
+      extensionality x;
+      unfold update;
+      destruct r_obligation_1;
+      try destruct P.VarEqDec; congruence.
+  Ltac SLAPHAPPY A B := destructs A; destruct B; apply LabelPre__LabelPre.
+  Ltac TICKY := simpl; splits; intros; eauto.
+
+   destruct l; simpls.
+    remember (P.Blocks P1 l1).
+    assert (P.B.BlockPre (P.VarEqDec P1) (P.LabelPre P1) l1 b).
+    rewrite Heqb. apply P.BlocksPre.
+
+    destruct b; eauto.
+      destruct i; TICKY.
+        SLAPHAPPY H0 H; apply H in H0; SOLVEUPDATE.
+        SLAPHAPPY H0 H; try apply H2; SOLVEUPDATE.
+        SLAPHAPPY H0 H; SOLVEUPDATE.
+        SLAPHAPPY H0 H; try apply H2; SOLVEUPDATE.
+        SLAPHAPPY H0 H; SOLVEUPDATE.
+      TICKY; destructs H0.
+        SLAPHAPPY H0 H; SOLVEUPDATE.
+        SLAPHAPPY H0 H; SOLVEUPDATE.
+
+    remember (P.Blocks P2 l2).
+    assert (P.B.BlockPre (P.VarEqDec P2) (P.LabelPre P2) l2 b).
+    rewrite Heqb. apply P.BlocksPre.
+
+    destruct b; eauto.
+      destruct i; TICKY.
+        SLAPHAPPY H0 H; apply H in H1; SOLVEUPDATE.
+        SLAPHAPPY H0 H; try apply H2; SOLVEUPDATE.
+        SLAPHAPPY H0 H; SOLVEUPDATE.
+        SLAPHAPPY H0 H; try apply H2; SOLVEUPDATE.
+        SLAPHAPPY H0 H; SOLVEUPDATE.
+      TICKY; destructs H0.
+        SLAPHAPPY H0 H; SOLVEUPDATE.
+        SLAPHAPPY H0 H; SOLVEUPDATE.
+ Qed.
+End Alt.
+End Alt.
+
+
 
 Set Default Goal Selector "all".
 
