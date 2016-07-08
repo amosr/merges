@@ -98,16 +98,14 @@ Section Goto.
    (hEvI : EvalI s i s')
          : post s'.
   Proof.
-   induction~ hEvI.
+   !induction hEvI.
   Qed.
 
   Theorem BlockPre_Get l b
-    : Blocks l = b
-   -> BlockPre l b.
+   (hBlock : Blocks l = b)
+           : BlockPre l b.
   Proof.
-    intros.
-    rewrite <- H.
-    apply BlocksPre.
+    !rewrite <- hBlock.
   Qed.
   Hint Immediate BlockPre_Get.
 
@@ -116,9 +114,8 @@ Section Goto.
    (hEvB : EvalB s l s' l')
          : LabelPre l' s'.
   Proof.
-   induction~ hEvB;
-    destructs~ (BlockPre_Get H).
-    eapply EvalI_Hoare; eauto.
+   !induction hEvB; destructs (BlockPre_Get H).
+   !eapply EvalI_Hoare.
   Qed.
 
 
@@ -138,10 +135,11 @@ Section Goto.
    (hEvB : EvalBs s l s' l')
          : LabelPre l' s'.
   Proof.
-   induction~ hEvB.
-    apply EvalB_Hoare in H; eauto.
+   hint EvalB_Hoare.
+   !induction hEvB.
   Qed.
 End Goto.
+
 Section Functor.
   Definition Instr_map_V {A B : Set} (f : A -> B) (i : Instr A) : Instr B :=
    match i with
@@ -153,7 +151,7 @@ Section Functor.
   Theorem Instr_map_V_id:
     forall A i, @Instr_map_V A A id i = i.
   Proof.
-   destruct i; eauto.
+   !destruct i.
   Qed.
 
   Definition Block_map_V {L A B : Set} (f : A -> B) (b : Block A L) : Block B L :=
@@ -170,7 +168,7 @@ Section Functor.
    end.
 
   Theorem Heap_comap_V {A B : Set} (f : B -> A) (h : Heap A) : Heap B.
-    unfolds Heap; unfolds Map; eauto.
+    firstorder.
   Defined.
 
   Theorem Pred_map_V {A B : Set}
@@ -198,7 +196,17 @@ Module Program.
     LabelPre P l H
   -> H' = H
   -> LabelPre P l H'.
- Proof. intros. subst. eauto. Qed.
+ Proof. !intros; subst. Qed.
+
+
+  Ltac Program_Block_destruct p l :=
+    let pre := fresh "block_pre" in
+    let eq  := fresh "block_eq" in
+    destruct (Blocks p l) eqn:eq;
+    lets pre: (BlocksPre p l);
+    simpl;
+    rewrite eq in *.
+
 End Program.
 
 
@@ -210,8 +218,9 @@ Module Nowt.
 
   Module P := Program.
   Program Definition r := {| P.Blocks := (fun _ => Base.BlockExit V0 L); P.LabelPre := LabelPre |}.
-  Solve Obligations with prove_eqdec.
-  Solve Obligations.
+  Next Obligation.
+    decides_equality.
+  Defined.
 End Nowt.
 
 
@@ -234,7 +243,9 @@ Module Zero.
    end.
 
   Program Definition r := {| Program.Blocks := Blocks; Program.LabelPre := LabelPre |}.
-  Solve Obligations with prove_eqdec.
+  Next Obligation.
+    decides_equality.
+  Defined.
   Next Obligation.
    destruct l; firstorder.
   Qed.
@@ -247,7 +258,7 @@ Module Seq.
   Variable P1 : P.Program V L1.
   Variable P2 : P.Program V L2.
   Inductive L' := L'1 (l : L1) | L'2 (l : L2).
-  
+
   Variable L2Start : L2.
 
   Hypothesis L2Pre:
@@ -276,29 +287,13 @@ Module Seq.
 
   Program Definition r := {| P.VarEqDec := P.VarEqDec P1; P.Blocks := Blocks; P.LabelPre := LabelPre |}.
   Next Obligation.
-    destruct l; eauto.
-    remember (P.Blocks P1 l).
-    remember (P.BlocksPre P1 l).
-    clear Heqb0.
-    rewrite <- Heqb in b0.
+    hint EqDec_Eq.
 
-    destruct b; eauto;
-    simpl; rewrite~ <- Heqb.
-    unfold Jumpy. simpls. eauto.
-
-    remember (P.Blocks P2 l).
-    remember (P.BlocksPre P2 l).
-    clear Heqb0.
-    rewrite <- Heqb in b0.
-    cuts_rewrite (P.VarEqDec P1 = P.VarEqDec P2).
-    destruct b; simpl; rewrite~ <- Heqb.
-
-    clear.
-
-    extensionality n.
-    extensionality m.
-
-    apply EqDec_Eq.
+    !destruct l.
+      !P.Program_Block_destruct P1 l.
+        !unfold Jumpy; simpls.
+      !P.Program_Block_destruct P2 l.
+        !cuts_rewrite (P.VarEqDec P1 = P.VarEqDec P2).
    Qed.
 
  End Seq.
@@ -355,7 +350,6 @@ Module Alt.
   -> P.LabelPre P2 l2 h2
   -> PredAnd (P.LabelPre P1 l1) (P.LabelPre P2 l2) (Heapjoin h1 h2).
   Proof.
-   intros.
    firstorder.
   Qed.
 
@@ -367,52 +361,39 @@ Module Alt.
     decides_equality.
   Qed.
   Next Obligation.
-  Ltac SOLVEUPDATE :=
-    eapply P.LabelPre_rewrite; eauto;
-      extensionality x;
-      unfold update;
-      destruct r_obligation_1;
-      try destruct P.VarEqDec; congruence.
-  Ltac SLAPHAPPY A B := destructs A; destruct B; apply LabelPre__LabelPre.
-  Ltac TICKY := simpl; splits; intros; eauto.
+    Ltac SOLVEUPDATE :=
+      eapply P.LabelPre_rewrite; eauto;
+        extensionality x;
+        unfold update;
+        destruct r_obligation_1;
+        try destruct P.VarEqDec; congruence.
+    Ltac TICKY := !simpls; unfolds LabelPreAnd; unfolds PredAnd;
+                   splits; intros; jauto_set.
 
-   destruct l; simpls.
-    remember (P.Blocks P1 l1).
-    assert (P.B.BlockPre (P.VarEqDec P1) (P.LabelPre P1) l1 b).
-    rewrite Heqb. apply P.BlocksPre.
+    Ltac APPLIES:=
+        try match goal with
+        | [ F : _ |- _ ]
+        => match goal with
+          | [ X : _ |- _ ]
+          => apply F in X
+          end
+        | [ F : _ |- _ ]
+        => apply F
+        end.
 
-    destruct b; eauto.
-      destruct i; TICKY.
-        SLAPHAPPY H0 H; apply H in H0; SOLVEUPDATE.
-        SLAPHAPPY H0 H; try apply H2; SOLVEUPDATE.
-        SLAPHAPPY H0 H; SOLVEUPDATE.
-        SLAPHAPPY H0 H; try apply H2; SOLVEUPDATE.
-        SLAPHAPPY H0 H; SOLVEUPDATE.
-      TICKY; destructs H0.
-        SLAPHAPPY H0 H; SOLVEUPDATE.
-        SLAPHAPPY H0 H; SOLVEUPDATE.
+   destruct l.
+    !P.Program_Block_destruct P1 l1.
+      destruct i; TICKY; APPLIES; SOLVEUPDATE.
+      TICKY.
 
-    remember (P.Blocks P2 l2).
-    assert (P.B.BlockPre (P.VarEqDec P2) (P.LabelPre P2) l2 b).
-    rewrite Heqb. apply P.BlocksPre.
-
-    destruct b; eauto.
-      destruct i; TICKY.
-        SLAPHAPPY H0 H; apply H in H1; SOLVEUPDATE.
-        SLAPHAPPY H0 H; try apply H2; SOLVEUPDATE.
-        SLAPHAPPY H0 H; SOLVEUPDATE.
-        SLAPHAPPY H0 H; try apply H2; SOLVEUPDATE.
-        SLAPHAPPY H0 H; SOLVEUPDATE.
-      TICKY; destructs H0.
-        SLAPHAPPY H0 H; SOLVEUPDATE.
-        SLAPHAPPY H0 H; SOLVEUPDATE.
+    !P.Program_Block_destruct P2 l2.
+      destruct i; TICKY; APPLIES; SOLVEUPDATE.
+      TICKY.
  Qed.
 End Alt.
 End Alt.
 
 
-
-Set Default Goal Selector "all".
 
 (*
 
