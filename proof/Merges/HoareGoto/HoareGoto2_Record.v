@@ -352,7 +352,7 @@ Module Alt.
   Proof.
    firstorder.
   Qed.
-
+  Print LabelPre__LabelPre.
 
   Program Definition r := {| P.Blocks := Blocks; P.LabelPre := LabelPre |}.
   Next Obligation.

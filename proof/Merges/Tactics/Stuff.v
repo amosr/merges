@@ -36,6 +36,23 @@ Ltac destruct_t T :=
   end.
 
 
+Ltac inject_all :=
+  repeat match goal with
+  | [ H : ?X _ _ _ _ _ _ = ?X _ _ _ _ _ _|- _ ]
+  => injects H
+  | [ H : ?X _ _ _ _ _ = ?X _ _ _ _ _ |- _ ]
+  => injects H
+  | [ H : ?X _ _ _ _ = ?X _ _ _ _ |- _ ]
+  => injects H
+  | [ H : ?X _ _ _ = ?X _ _ _ |- _ ]
+  => injects H
+  | [ H : ?X _ _ = ?X _ _ |- _ ]
+  => injects H
+  | [ H : ?X _ = ?X _ |- _ ]
+  => injects H
+  end.
+
+
 Ltac crunch_destruct V :=
  repeat (match goal with
   | [ |- context [ V ?X          ] ] => destruct (V X)
