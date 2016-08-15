@@ -3,6 +3,7 @@ Require Import Merges.Tactics.
 Require Import Coq.Program.Equality.
 Require Import Coq.Logic.FunctionalExtensionality.
 
+
 Section Map.
  Variable K : Type.
  Variable V : Type.
