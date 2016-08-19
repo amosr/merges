@@ -16,6 +16,7 @@ data Comb a where
  Merge   :: Comb (Int,a) -> Comb (Int,a) -> Comb (Int,a)
  Indices :: Comb Int -> Comb Int
  GroupBy :: Eq eq => (a -> a -> a) -> Comb (eq,a) -> Comb (eq,a)
+ Count   :: Comb a -> Comb Int
 
 
 type Sink a

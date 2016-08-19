@@ -1,6 +1,7 @@
 module Automata4Coms where
 import Automata4
 import qualified Data.Map as M
+import Debug.Trace
 
 -- | THE FUNCTIONS WE NEED
 data Functions f
@@ -31,6 +32,7 @@ data Functions f
  , f_plus1 :: f -- Int -> Int
  , f_fsts  :: f -> f -- (a -> c) -> (a,b) -> (c,b)
  , f_uncurry :: f -> f -- (a -> b -> c) -> (a,b) -> c
+ , f_constI :: Int -> f -- Int
  }
 
 functions_string :: Functions String
@@ -49,6 +51,7 @@ functions_string
  , f_plus1= "(+1)"
  , f_fsts = ("fsts "++)
  , f_uncurry = ("uncurry "++)
+ , f_constI = \i -> show i
  }
 
 
@@ -229,4 +232,24 @@ group_by_a f fun inp out
     ]
  }
 
+
+
+-- Count a single thing
+-- This is kind of silly, but ok
+--
+-- count :: [a] -> [Int]
+count_a :: Functions f -> n -> n -> Machine Int n f
+count_a f inp out
+ = Machine
+ { _init = 0
+ , _trans = M.fromList
+    [ (0, Update (Function (f_constI f 0) out []) 1)
+    , (1, Pull inp 2 900)
+    , (2, Update (Function (f_plus1 f) out [out]) 3)
+    , (3, Release inp 1)
+
+    , (900, Out (Function (f_id f) out [out]) 901)
+    , (901, OutFinished out 902)
+    , (902, Done) ]
+ }
 

@@ -393,38 +393,71 @@ Module Fuse.
   simpls.
   unfolds Evalish.
 
+  destruct (Blocks (LX l1 l2 s1 s2 Valid)) eqn:ThisBlock.
+
+ skip.
+
   destruct (P.Blocks P1 l1) eqn:P1Block
   ; destruct (P.Blocks P2 l2) eqn:P2Block
   ; (!inverts hEvB); simpls;
   unfolds StreamType;
-  unfolds makeBlock.
-  rewrite P1Block in *.
-  rewrite P2Block in *.
+  unfolds makeBlock;
+  rewrite P1Block in *;
+  rewrite P2Block in *;
+  !repeat match goal with
+  | [ _ : context [ P.StreamType ?a ?b ] |- _ ]
+  => let x := fresh "destruct_" P.StreamType in remember (P.StreamType a b) as x
+     ; destruct x; tryfalse
+     ; repeat match goal with
+       | [ H : _ = P.StreamType a b |- _ ] => gen H
+       end
+  end; intros;
+  try destruct_apps s0; try destruct_apps s1;
+  try destruct_apps s2; try destruct_apps s3; inject_all;
+  jauto_set_hyps; intros; splits;
+  tryfalse.
 
-  Ltac destruct_apps_2 FUN :=
-  match goal with
-  | [ _ : context [ FUN ?a ?b ] |- _ ]
-  => let x := fresh "destruct_" FUN in remember (FUN a b) as x
-     ; destruct x
-     ;  repeat match goal with
-       | [ H : _ = FUN a b |- _ ] => gen H
-       end
-  end.
-  Tactic Notation "destruct_apps_3" tactic(FUN) :=
-  match goal with
-  | [ _ : context [ FUN ?a ?b ] |- _ ]
-  => let x := fresh "destruct_" FUN in remember (FUN a b) as x
-     ; destruct x
-     ;  repeat match goal with
-       | [ H : _ = FUN a b |- _ ] => gen H
-       end
-  end.
-  (* neither of these work: 
-      destruct_apps_3 P.StreamType.
-      destruct_apps_2 P.StreamType.
-    and this doesn't work either
-      destruct_apps (P.StreamType P2).
-  *)
+  !eexists; splits; try doit B.EvalBRelease;
+  intros.
+  unfolds stateUpdate.
+  forwards Hsv: H sv.
+  forwards H2sv: H2 sv.
+  !destruct (P.StreamVarEqDec P1 s sv); subst;
+  repeat rewrite update_eq_is;
+  repeat rewrite update_ne_is;
+  repeat rewrite <- Heqdestruct_s1 in *;
+  repeat rewrite <- Heqdestruct_s2 in *.
+
+
+
+
+
+
+
+
+
+
+  destruct_apps s0; destruct_apps s3.
+  destruct_apps s0; destruct_apps s3.
+  destruct_apps s0.
+  destruct_apps s3.
+  destruct_apps s3.
+  destruct_apps s0.
+  destruct_apps s3.
+  destruct_apps s3.
+
+
+
+
+
+
+  destruct (P.Blocks P1 l1) eqn:P1Block
+  ; destruct (P.Blocks P2 l2) eqn:P2Block
+  ; (!inverts hEvB); simpls;
+  unfolds StreamType;
+  unfolds makeBlock;
+  try rewrite P1Block in *;
+  try rewrite P2Block in *;
 
 
   !repeat match goal with
@@ -435,23 +468,13 @@ Module Fuse.
        | [ H : _ = P.StreamType a b |- _ ] => gen H
        end
   end; intros;
-  destruct_apps s1; destruct_apps s2; inject_all;
+  try destruct_apps s1; try destruct_apps s2; inject_all;
   jauto_set_hyps; intros; splits.
 
-  destruct_apps (P.StreamType).
+  all: unfold stateUpdate.
 
-  destruct (P.StreamType P1 v) eqn:StreamTypeP1v0;
-  destruct (P.StreamType P2 v) eqn:StreamTypeP2v0;
-  tryfalse.
-  destruct (P.StreamType P1 s4) eqn:StreamTypeP1s4;
-  destruct (P.StreamType P2 s) eqn:StreamTypeP2s; tryfalse.
-
-  destruct_apps s1; destruct_apps s2; tryfalse; inject_all;
-  jauto_set_hyps; intros; splits.
-
-  !exists (update SV (list P.B.Value) (P.StreamVarEqDec P1) v (x v ++ [i]) x).
-  !splits. intros.
-  unfold stateUpdate.
+  exists (update SV (list P.B.Value) (P.StreamVarEqDec P1) v (x v ++ [i]) x).
+  splits. intros.
   destruct (P.StreamVarEqDec P1 v sv).
   substs.
   !repeat rewrite update_eq_is.
@@ -463,15 +486,42 @@ Module Fuse.
   !eapply B.EvalBs1.
   !eapply B.EvalBPullOk.
 
-  !exists x0; splits; intros.
-  unfolds stateUpdate.
 
-  destruct (P.StreamVarEqDec P1 v sv); substs.
-  repeat rewrite update_eq_is.
+  all: try solve [
+  (!eexists; splits); intros;
+  destruct (P.StreamVarEqDec P1 v sv); substs;
+  repeat rewrite update_eq_is;
+  (!repeat rewrite update_ne_is);
+  (!forwards Hick: H2 sv);
+  eexists;
+  (!rewrite <- Heqdestruct_s3 in *);
+  !rewrite Hick ].
+
+  skip. skip. skip. skip. skip. skip. skip. skip. skip. skip.
+  skip. skip. skip. skip. skip. skip. skip. skip. skip. skip.
+  skip. skip. skip. skip. skip. skip. skip. skip. skip. skip.
+
+  !eexists; splits. intros.
+  destruct (P.StreamVarEqDec P1 v sv); substs;
+
+  (!eexists; splits); intros.
+  destruct (P.StreamVarEqDec P1 v sv); substs;
+  repeat rewrite update_eq_is;
+  (!repeat rewrite update_ne_is).
+  (!forwards Hick: H2 sv);
+  eexists;
+  (!rewrite <- Heqdestruct_s3 in *);
+  !rewrite Hick.
+
+  !forwards: H2 sv.
+
+  (!exists x0; splits); intros;
+  destruct (P.StreamVarEqDec P1 v sv); substs;
+  repeat rewrite update_eq_is;
+  !repeat rewrite update_ne_is.
   exists i.
   !forwards: H2 sv. !rewrite <- Heqdestruct_s3 in H4.
   !rewrite H4.
-  !repeat rewrite update_ne_is.
   !forwards: H2 sv.
 
 

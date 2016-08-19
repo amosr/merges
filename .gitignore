@@ -1,4 +1,10 @@
 *.glob
 *.vo
 .*
+*.o
+*.dyn_hi
+*.dyn_o
+*.hi
+cabal.sandbox.config
+*.v#
 proof/make/

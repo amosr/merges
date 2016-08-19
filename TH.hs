@@ -12,6 +12,7 @@ import qualified Data.Map as M
 
 import Language.Haskell.TH
 import Language.Haskell.TH.Syntax (unsafeTExpCoerce)
+import Debug.Trace
 
 data Decl nm
  = DWhen   nm Exp
@@ -37,7 +38,7 @@ comb exp
                    Left e
                     -> err e
                    Right m'
-                    -> unsafeTExpCoerce (generate m' sms)
+                    ->  unsafeTExpCoerce (generate m' sms)
 
             -- xx isn't a unit
             | otherwise
@@ -121,6 +122,11 @@ comb exp
    , c == 'GroupBy
    = do (rs ,in1') <- nested' b in1
         named (dmach . group_by_a functions f in1') rs
+
+   | [ConE c, in1] <- takeApps x
+   , c == 'Count
+   = do (rs ,in1') <- nested' b in1
+        named (dmach . count_a functions in1') rs
 
 
 

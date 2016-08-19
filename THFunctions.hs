@@ -20,6 +20,7 @@ functions
  , f_plus1= v 'plus1
  , f_fsts = \x -> v 'fsts `AppE` x
  , f_uncurry = \x -> v 'uncurry `AppE` x
+ , f_constI = \i -> LitE (integerL (fromIntegral i))
  }
  where
   v = VarE

@@ -67,6 +67,16 @@ move    :: (Ord name, Ord l1, Ord l2)
         -> L' l1 l2 name
         -> Either (MergeError l1 l2 name fun) (Transition (L' l1 l2 name) name fun)
 move m1 m2 l
+
+ -- If both are valid, favour the single-successor one
+ | L' s1 e1 s2 e2 <- l
+ , Just t1 <- M.lookup s1 (_trans m1)
+ , Just t2 <- M.lookup s2 (_trans m2)
+ , Just mv1 <- move' m1 m2 t1 t2 l
+ , Just mv2 <- move' m2 m1 t2 t1 (flipL l)
+ , length (succs mv2) < length (succs mv1)
+ = return (mapT flipL mv2)
+
  | L' s1 e1 s2 e2 <- l
  , Just t1 <- M.lookup s1 (_trans m1)
  , Just t2 <- M.lookup s2 (_trans m2)
@@ -76,10 +86,10 @@ move m1 m2 l
     Nothing
      -> case move' m2 m1 t2 t1 (flipL l) of
          Just mv
-          | trace "(Commutative)" True
+          | trace' "(Commutative)" True
           -> return (mapT flipL mv)
          Nothing
-          | trace "Fail..." True
+          | trace' "Fail..." True
           -> Left (ErrorUnhandled t1 e1 t2 e2)
  | otherwise
  = Left (ErrorBadTransition l)
@@ -93,23 +103,23 @@ move m1 m2 l
 
    -- (Update)
    | Update f s1' <- t1
-   , trace "(Update)" True
+   , trace' "(Update)" True
    = return
    $ Update f (L' s1' e1 s2 e2)
    -- (Skip)
    | Skip s1' <- t1
-   , trace "(Skip)" True
+   , trace' "(Skip)" True
    = return
    $ Skip (L' s1' e1 s2 e2)
    -- (If)
    | If f st sf <- t1
-   , trace "(If)" True
+   , trace' "(If)" True
    = return
    $ If f (L' st e1 s2 e2) (L' sf e1 s2 e2)
    -- (DoneDone)
    | Done <- t1
    , Done <- t2
-   , trace "(DoneDone)" True
+   , trace' "(DoneDone)" True
    = return
    $ Done
 
@@ -121,7 +131,7 @@ move m1 m2 l
    , n <- _state f
    , isInput n m2
    , Closed n `S.member` e2
-   , trace "(OutputClosed)" True
+   , trace' "(OutputClosed)" True
    = return
    $ Out f (L' s1' e1 s2 e2)
 
@@ -130,7 +140,7 @@ move m1 m2 l
    , n <- _state f
    , isInput n m2
    , not (Value n `S.member` e2)
-   , trace "(OutputReady)" True
+   , trace' "(OutputReady)" True
    = return
    $ Out f (L' s1' e1 s2 (S.insert (Value n) e2))
 
@@ -138,7 +148,7 @@ move m1 m2 l
    | Out f s1' <- t1
    , n <- _state f
    , not $ isInput n m2
-   , trace "(OutputLocal)" True
+   , trace' "(OutputLocal)" True
    = return
    $ Out f (L' s1' e1 s2 e2)
 
@@ -147,7 +157,7 @@ move m1 m2 l
    , isInput n m2
    , Closed n `S.member` e2
    , not (Value n `S.member` e2)
-   , trace "(OutFinishedClosed)" True
+   , trace' "(OutFinishedClosed)" True
    = return
    $ OutFinished n (L' s1' e1 s2 e2)
 
@@ -156,14 +166,14 @@ move m1 m2 l
    , isInput n m2
    , not (Value  n `S.member` e2)
    , not (Closed n `S.member` e2)
-   , trace "(OutFinishedReady)" True
+   , trace' "(OutFinishedReady)" True
    = return
    $ OutFinished n (L' s1' e1 s2 (S.insert (Finished n) e2))
 
    -- (OutFinishedLocal)
    | OutFinished n s1' <- t1
    , not $ isInput n m2
-   , trace "(OutFinishedLocal)" True
+   , trace' "(OutFinishedLocal)" True
    = return
    $ OutFinished n (L' s1' e1 s2 e2)
 
@@ -174,21 +184,21 @@ move m1 m2 l
    | Pull n sT sF <- t1
    , not $ isInput  n m2
    , not $ isOutput n m2
-   , trace "(PullLocal)" True
+   , trace' "(PullLocal)" True
    = return
    $ Pull n (L' sT e1 s2 e2) (L' sF e1 s2 e2)
 
    -- (PullClosed)
    | Pull n sT sF <- t1
    , Closed n `S.member` e2
-   , trace "(PullClosed)" True
+   , trace' "(PullClosed)" True
    = return
    $ Pull n (L' sT e1 s2 e2) (L' sF e1 s2 e2)
 
    -- (PullValue)
    | Pull n sT _F <- t1
    , Value n `S.member` e1
-   , trace "(PullValue)" True
+   , trace' "(PullValue)" True
    = return
    $ Skip (L' sT e1 s2 e2)
 
@@ -196,7 +206,7 @@ move m1 m2 l
    | Pull n _T sF <- t1
    , Finished n `S.member` S.union e1 e2
    , not (Value n `S.member` S.union e1 e2)
-   , trace "(PullFinished)" True
+   , trace' "(PullFinished)" True
    = return
    $ Skip (L' sF e1 s2 e2)
 
@@ -205,7 +215,7 @@ move m1 m2 l
    , not (Finished n `S.member` S.union e1 e2)
    , not (Value n `S.member` S.union e1 e2)
    , isInput n m2
-   , trace "(PullReady)" True
+   , trace' "(PullReady)" True
    = return
    $ Pull n (L' sT (S.insert (Value n) e1)    s2 (S.insert (Value n) e2)) 
             (L' sF (S.insert (Finished n) e1) s2 (S.insert (Finished n) e2))
@@ -217,7 +227,7 @@ move m1 m2 l
    | Release n s' <- t1
    , not $ isInput  n m2
    , not $ isOutput n m2
-   , trace "(ReleaseLocal)" True
+   , trace' "(ReleaseLocal)" True
    = return
    $ Release n (L' s' e1 s2 e2)
    
@@ -225,7 +235,7 @@ move m1 m2 l
    | Release n s' <- t1
    , isOutput n m2
    , Value n `S.member` e1
-   , trace "(ReleaseOutput)" True
+   , trace' "(ReleaseOutput)" True
    = return
    $ Skip (L' s' (S.delete (Value n) e1) s2 e2)
 
@@ -234,7 +244,7 @@ move m1 m2 l
    , isInput n m2
    , Value n `S.member` e1
    , Value n `S.member` e2
-   , trace "(ReleaseSharedFirst)" True
+   , trace' "(ReleaseSharedFirst)" True
    = return
    $ Skip (L' s' (S.delete (Value n) e1) s2 e2)
 
@@ -243,7 +253,7 @@ move m1 m2 l
    , isInput n m2
    , Value n `S.member` e1
    , not (Value n `S.member` e2)
-   , trace "(ReleaseSharedSecond)" True
+   , trace' "(ReleaseSharedSecond)" True
    = return
    $ Release n (L' s' (S.delete (Value n) e1) s2 e2)
 
@@ -254,14 +264,14 @@ move m1 m2 l
    | Close n s' <- t1
    , not $ isInput  n m2
    , not $ isOutput n m2
-   , trace "(CloseLocal)" True
+   , trace' "(CloseLocal)" True
    = return
    $ Close n (L' s' e1 s2 e2)
 
    -- (CloseOutput)
    | Close n s' <- t1
    , isOutput n m2
-   , trace "(CloseOutput)" True
+   , trace' "(CloseOutput)" True
    = return
    $ Skip (L' s' (S.insert (Closed n) e1) s2 e2)
 
@@ -270,7 +280,7 @@ move m1 m2 l
    , isInput n m2
    , not (Finished n `S.member` S.union e1 e2)
    , not (Closed   n `S.member` e2)
-   , trace "(CloseSharedOne)" True
+   , trace' "(CloseSharedOne)" True
    = return
    $ Skip (L' s' (S.insert (Closed n) e1) s2 e2)
 
@@ -278,7 +288,7 @@ move m1 m2 l
    | Close n s' <- t1
    , isInput n m2
    , Finished n `S.member` S.union e1 e2
-   , trace "(CloseSharedFinished)" True
+   , trace' "(CloseSharedFinished)" True
    = return
    $ Skip (L' s' (S.insert (Closed n) e1) s2 e2)
 
@@ -287,7 +297,7 @@ move m1 m2 l
    , isInput n m2
    , not (Finished n `S.member` S.union e1 e2)
    ,      Closed   n `S.member` e2
-   , trace "(CloseSharedBoth)" True
+   , trace' "(CloseSharedBoth)" True
    = return
    $ Close n (L' s' (S.insert (Closed n) e1) s2 e2)
 
@@ -308,3 +318,6 @@ move m1 m2 l
    $ snd
    $ freevars m
 
+
+trace' :: String -> a -> a
+trace' _ a = a 
