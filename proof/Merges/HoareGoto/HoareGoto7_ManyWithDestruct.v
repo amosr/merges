@@ -515,10 +515,10 @@ Module Fuse.
     all: intros; tryfalse.
 
   - (* BlockJump *)
+    jauto_set_hyps; intros.
     symmetry in H; matchmaker H.
     all: inject_all.
-    all: jauto_set_hyps; intros.
-    all: try (forwards: H0 s; forwards: H0 s4; forwards: H2 s; forwards: H2 s4).
+    all: try forwards: H1 s; try forwards: H1 s4; try forwards: H3 s; try forwards: H3 s4.
     all: jauto_set_hyps.
     all: intros.
 
@@ -535,6 +535,19 @@ Module Fuse.
     => rewrite <- ABC in *
     end.
 
+
+
+(*
+
+Heq_scrut_Heq_scrut_H0 : P.B.BlockJump SV l = P.Blocks P2 l2
+H4 : P.B.Input = B.Ignore -> FakeValue = NoValue
+H6 : P.B.Input = B.Ignore -> s2 sv = NoValue
+Heq_scrut_Heq_scrut_H : P.B.BlockPull sv l4 = P.Blocks P1 l1
+Heq_scrut_Heq_scrut_H1 : P.B.Input = P.StreamType P1 sv
+Heq_scrut_Heq_scrut_H2 : P.B.Input = P.StreamType P2 sv
+Heq_scrut_Heq_scrut_H3 : FakeValue = s1 sv
+
+*)
     all: !jauto_set.
     all: doit B.EvalBJump.
     all: doit B.EvalBPullOk.
@@ -542,7 +555,7 @@ Module Fuse.
     all: doit B.EvalBRelease.
     all: doit B.EvalBPush.
 
-    all: !intros; unfolds stateUpdate; forwards: H0 sv; forwards: H2 sv; jauto_set.
+    all: !intros; unfolds stateUpdate; forwards: H1 sv; forwards: H3 sv; jauto_set.
     all: !intros; tryfalse.
 
     all: !repeat match goal with
@@ -565,15 +578,6 @@ Module Fuse.
     => rewrite <- ABC in *
     end.
 
-    jauto_set. rewrite H3.
-    (* x sv ++ [?i] = x sv ++ [x1] *)
-    (* > reflexivity *)
-    (* Unable to unify "?i" with "x1" (cannot instantiate "?i" because "x1" is not in its scope *)
-    (* But can't move the x1 existential, or the i existential in, because
-       we need "sv" to be able to get "x1", but "sv" is inside the i existential.
-       I am sure there is a way around this, it just requires rejigging the invariants *)
-    skip.
-
   - (* Ignore! *)
     unfolds StreamType.
     !destruct (P.StreamType P1 v) eqn:StreamType1; destruct (P.StreamType P2 v) eqn:StreamType2; tryfalse.
@@ -593,8 +597,6 @@ Module Fuse.
 
     !rewrite H7 in *.
     rewrite H6. reflexivity.
- Grab Existential Variables.
-    apply 0.
  Qed.
  Next Obligation.
   unfolds Evalish.
