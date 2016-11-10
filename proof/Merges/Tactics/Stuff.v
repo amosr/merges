@@ -11,8 +11,18 @@ Set Implicit Arguments.
 
   However, "*" does not work as a prefix since it is a bullet.
 *)
-Tactic Notation "!" tactic(t) := t; auto_star.
+Tactic Notation "!" tactic1(t) := t; auto_star.
 
+(* This one is "bigger" and binds more. So
+      !X; Y; Z
+  is parsed as
+      (!X); Y; Z
+  while
+      !!X; Y; Z
+  is parsed as
+      !!(X; Y; Z)
+*)
+Tactic Notation "!!" tactic(t) := t; auto_star.
 
 (* *)
 Ltac unfold_simp F :=
@@ -102,5 +112,54 @@ Ltac best_bet :=
 
 Tactic Notation "churn_with" tactic(F) :=
   repeat (F; best_bet; simpl in *).
+
+
+
+Ltac destruct_apps FUN :=
+repeat match goal with
+| [ _ : context [ FUN ?a ] |- _ ]
+=> let x := fresh "destruct_" FUN in remember (FUN a) as x
+   ; destruct x
+   ; tryfalse
+   ; repeat match goal with
+     | [ H : _ = FUN a |- _ ] => gen H
+     end
+end;
+ intros.
+
+Ltac matchmaker Heq :=
+ match goal with
+| [ Heq : _ = match ?A with | _ => _ end |- _ ]
+=> let x    := fresh "scrut_" Heq
+in let Heqx := fresh "Heq_" x
+in remember A as x eqn:Heqx; destruct x; try rewrite <- Heqx in *; tryfalse
+ ; try matchmaker Heqx
+| [ Heq : match ?A with | _ => _ end = _ |- _ ]
+=> let x    := fresh "scrut_" Heq
+in let Heqx := fresh "Heq_" x
+in remember A as x eqn:Heqx; destruct x; try rewrite <- Heqx in *; tryfalse
+ ; try matchmaker Heqx
+end.
+
+
+Ltac matchmaker_goal := repeat
+ match goal with
+| [ |- context [match ?A with | _ => _ end] ]
+=> let x    := fresh "scrut_"
+in let Heqx := fresh "Heq_" x
+in remember A as x eqn:Heqx; destruct x; substs; try rewrite <- Heqx in *; tryfalse
+ ; try matchmaker Heqx
+end.
+
+Ltac matchmaker_goal' :=
+          !!repeat
+         match goal with
+        | [ |- context [match ?A with | _ => _ end] ]
+        => let x    := fresh "scrut_"
+        in let Heqx := fresh "Heq_" x
+        in remember A as x eqn:Heqx; destruct x
+         ; try matchmaker Heqx
+         ; try rewrite <- Heqx in *; tryfalse
+        end.
 
 

@@ -73,7 +73,7 @@ Theorem EqDec_Eq (A : Type) (a b : EqDec A):
 Proof.
   extensionality n.
   extensionality m.
-  !destruct_t (EqDec A); f_equal; tryfalse.
+  !!destruct_t (EqDec A); f_equal; tryfalse.
 Qed.
 
 Ltac destroy_eqdecs EQDEC
