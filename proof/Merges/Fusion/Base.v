@@ -234,7 +234,9 @@ Section Fuse.
       end
     end.
 
-  Definition Evalish (LA VA : Set) (mkV : VA -> V) (P : P.Program LA C VA) (s : C -> State) (iss : B.StreamHeap C) (h : B.ScalarHeap V) (l : LA) : Prop :=
+  Definition Evalish (LA VA LB VB : Set) (mkV : VA -> V)
+      (P : P.Program LA C VA) (P' : P.Program LB C VB)
+      (s : C -> State) (iss : B.StreamHeap C) (h : B.ScalarHeap V) (l : LA) : Prop :=
    let iss' :=
     fun sv =>
      match s sv with
@@ -260,11 +262,9 @@ Section Fuse.
          | _ => False
          end
      end /\
-     (P.StreamType P sv = B.Ignore -> s sv = NoValue)
+     (P.StreamType P sv = B.Ignore -> s sv = NoValue) /\
+     (P.StreamType P' sv = B.Ignore -> s sv = NoValue)
      ).
-  (* XXX TODO: this should be if either machine = Ignore, s sv = NoValue.
-    This is because if other machine ignores the input, there is no scheduling to do.
-  *)
 
   Definition LabelPre (l : L') : B.Pred C V :=
    match l with
@@ -272,8 +272,8 @@ Section Fuse.
    => fun _ _ => True
    | LX l1 l2 s1 s2 Valid
    => fun iss h
-   => Evalish V'V1 P1 s1 iss h l1
-   /\ Evalish V'V2 P2 s2 iss h l2
+   => Evalish V'V1 P1 P2 s1 iss h l1
+   /\ Evalish V'V2 P2 P1 s2 iss h l2
    end.
   Hint Unfold LabelPre.
 
