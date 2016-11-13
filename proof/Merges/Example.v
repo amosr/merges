@@ -78,6 +78,28 @@ Module Eg.
     Qed.
   End Map. End Map.
 
+  Module EvalsB.
+  Section EvalsB.
+    Variable Label : Set.
+    Variable ChanV : Set.
+    Variable ScalarV : Set.
+
+    Variable P : P.Program Label ChanV ScalarV.
+
+    Inductive EvalsB : B.StreamHeap ChanV -> B.ScalarHeap ScalarV -> Label -> B.StreamHeap ChanV -> B.ScalarHeap ScalarV -> Label -> Prop :=
+     | EvalsB0 l h sh
+        : EvalsB h sh l   h sh l
+     | EvalsB1 l l' l'' h h' h'' sh sh' sh''
+        : B.EvalB (P.ChanVarEqDec P) (P.ScalarVarEqDec P) (P.StreamType P) (P.Blocks P) h sh l   h' sh' l'
+       -> EvalsB h' sh' l'   h'' sh'' l''
+       -> EvalsB h sh l   h'' sh'' l''
+     .
+
+    Definition EvalTop :=
+     EvalsB (fun _ => []) (fun _ => 0) (P.Init P).
+
+  End EvalsB. End EvalsB.
+
   Module Eg1.
     Inductive C := C1 | C2 | C3.
     Theorem EqDec_C : EqDec C. decides_equality. Qed.
@@ -92,148 +114,144 @@ Module Eg.
 
     Definition P' := r P1 P2 EqDec_C.
 
-    Print P'.
-    Check P.EvalBs.
-    Print Tactics.
-
     Ltac sunfolds X := unfolds X; simpls.
 
-
-    (* XXX TODO: change Fusion.Base.LabelPre to be "if either machine ignores input, state = NoValue" *)
-
-(*
-
-    Theorem all_eval_ok h sh l:
-     P.EvalBs P' h sh l ->
-     Tactics.isValid l.
+    Theorem eval_P1_nil:
+      exists sh,
+     EvalsB.EvalTop P1
+      (fun c => match c with
+                | C1 => []
+                | C2 => []
+                | C3 => []
+                end)
+      sh Map.L'Pull.
     Proof.
-      intros hEvBs.
-      induction hEvBs; !simpls.
-
-      destruct l as [l1 l2 s1 s2 v] eqn:hl.
-      destruct l' as [l'1 l'2 s'1 s'2 v'] eqn:hl'.
-      destruct v; !destruct v'; tryfalse.
-
-      sunfolds F.Blocks.
-      sunfolds F.makeBlock.
-      sunfolds Map.Blocks.
-
-      sunfolds F.StreamType.
-      sunfolds Map.StreamType.
-
-      inverts H.
-
-(*
-      all: time try solve [clear hEvBs; clear H1; time matchmaker H0].
-      clear hEvBs; time matchmaker H0.
-*)
-    skip. skip. skip. skip. skip. skip.
-
-    apply Base.EvalBs_Hoare with (LabelPre := F.LabelPre P1 P2)
-    in hEvBs;
-    try solve [apply P'].
-
-  simpls.
-  sunfolds F.Evalish.
-  destruct hEvBs as [hPre1 hPre2].
-  destruct hPre1 as [hEv1 hPre1].
-  destruct hPre2 as [hEv2 hPre2].
-
-  forwards: hPre1 C1.
-  forwards: hPre1 C2.
-  forwards: hPre1 C3.
-
-  forwards: hPre2 C1.
-  forwards: hPre2 C2.
-  forwards: hPre2 C3.
-
-  clear hPre1. clear hPre2.
-  clear hEv1. clear hEv2.
-
-  jauto_set.
-
-  unfolds Map.StreamType.
-
-  destruct l1; destruct l2; repeat (destruct (EqDec_C _ _); tryfalse).
-  - 
-    assert (s1 C1 = F.NoValue).
-    !destruct (s1 C1).
-    + destruct (h' C1); tryfalse.
-
-  repeat match goal with
-    | [ H : (P.EvalBs _ _ _ _) |- _ ]
-    => clear H
-    | [ H : (?A = ?A) |- _ ]
-    => clear H
-    | [ H : True |- _ ]
-    => clear H
-    | [ H : (?A = ?A -> ?B) |- _ ]
-    => let H' := fresh H in !assert B as H'; clear H; rewrite H' in *
-  end.
+     eexists. unfolds.
+     applys_eq EvalsB.EvalsB0 3.
+      extensionality c; !destruct c.
+    Qed.
 
 
-  rewrite H6 in *.
+    Theorem eval_P1_2:
+      exists sh,
+     EvalsB.EvalTop P1
+      (fun c => match c with
+                | C1 => [1; 2]
+                | C2 => [2; 3]
+                | C3 => []
+                end)
+      sh Map.L'Pull.
+    Proof.
+     eexists. unfolds.
+     eapply EvalsB.EvalsB1.
+       !eapply B.EvalBPullOk; !simpls; !unfolds Map.StreamType.
+        repeat !destruct (EqDec_C); tryfalse.
 
-  time matchmaker H0.
+     eapply EvalsB.EvalsB1.
+       !eapply B.EvalBPush; !simpls; !unfolds Map.StreamType;
+        repeat !destruct (EqDec_C); tryfalse.
 
-  - 
-  inject_all.
+     eapply EvalsB.EvalsB1.
+       !eapply B.EvalBRelease; !simpls; !unfolds Map.StreamType;
+        repeat !destruct (EqDec_C); tryfalse.
 
-  repeat match goal with
-    | [ H : _ <> _ |- _ ]
-    => clear H
-    | [ H : _ = EqDec_C _ _ |- _ ]
-    => clear H
-    | [ H : (?A = ?A) |- _ ]
-    => clear H
-  end.
+     eapply EvalsB.EvalsB1.
+       !eapply B.EvalBPullOk; !simpls; !unfolds Map.StreamType.
+        repeat !destruct (EqDec_C); tryfalse.
 
-  rewrite <- Heq_scrut_Heq_scrut_H9 in *.
-  rewrite <- Heq_scrut_Heq_scrut_H3 in *.
-  rewrite <- Heq_scrut_Heq_scrut_H8 in *.
+     eapply EvalsB.EvalsB1.
+       !eapply B.EvalBPush; !simpls; !unfolds Map.StreamType;
+        repeat !destruct (EqDec_C); tryfalse.
 
-  repeat match goal with
-    | [ H : s'1 _ = _ |- _ ]
-    => try rewrite H in *; clear H
-    | [ H : s'2 _ = _ |- _ ]
-    => try rewrite H in *; clear H
-    | [ H : _ = s'1 _ |- _ ]
-    => try rewrite <- H in *; clear H
-    | [ H : _ = s'2 _ |- _ ]
-    => try rewrite <- H in *; clear H
-  end.
+     eapply EvalsB.EvalsB1.
+       !eapply B.EvalBRelease; !simpls; !unfolds Map.StreamType;
+        repeat !destruct (EqDec_C); tryfalse.
 
-  !destruct (h' C2).
-  !destruct (s'2 C3).
-
-  rewrite <- Heq_scrut_Heq_scrut_H9 in *.
-
-  repeat match goal with
-    | [ H : _ <> _ |- _ ]
-    => clear H
-  end.
-
-  clear n6.
-
-  (* 251s *)
-
-Ltac matchmaker' Heq :=
- match goal with
-| [ Heq : _ = match ?A with | _ => _ end |- _ ]
-=> let x    := fresh "scrut_" Heq
-in let Heqx := fresh "Heq_" x
-in remember A as x eqn:Heqx; destruct x; tryfalse; try rewrite <- Heqx in *
- ; try matchmaker Heqx
-| [ Heq : match ?A with | _ => _ end = _ |- _ ]
-=> let x    := fresh "scrut_" Heq
-in let Heqx := fresh "Heq_" x
-in remember A as x eqn:Heqx; destruct x; tryfalse; try rewrite <- Heqx in *
- ; try matchmaker Heqx
-end.
+     applys_eq EvalsB.EvalsB0 3.
+       extensionality c;
+       !unfolds update.
+        simpls.
+        destruct c;
+        repeat !destruct (EqDec_C); tryfalse.
+        repeat !destruct (Map.P_obligation_1); tryfalse.
+    Qed.
 
 
-  time matchmaker' H0.
-  (* 226s *)
-*)
+    Theorem eval_P'_1:
+      exists sh,
+     EvalsB.EvalTop P'
+      (fun c => match c with
+                | C1 => [11; 1]
+                | C2 => [12; 2]
+                | C3 => [    3]
+                end)
+      sh (F.LX Map.L'Pull Map.L'Pull (fun c : C => F.NoValue)
+        (fun c : C =>
+          match c with
+          | C1 => F.NoValue
+          | C2 => F.AvailableToPull
+          | C3 => F.NoValue
+          end) F.Valid).
+    Proof.
+     eexists. unfolds. simpls.
+
+  Ltac ev X :=
+       !eapply X; !simpls; !unfolds Map.StreamType; unfolds F.stateUpdate; unfolds update;
+        repeat destruct (EqDec_C); tryfalse;
+        try reflexivity;
+        sunfolds F.StreamType;
+        sunfolds Map.StreamType;
+        repeat destruct (EqDec_C); !tryfalse.
+
+     (* Pull Pull *)
+     eapply EvalsB.EvalsB1.
+       ev B.EvalBPullOk.
+     (* Push Pull *)
+     eapply EvalsB.EvalsB1.
+       ev B.EvalBUpdate.
+     (* Push Pull *)
+     eapply EvalsB.EvalsB1.
+       ev B.EvalBPush.
+     (* Rele Pull *)
+     eapply EvalsB.EvalsB1.
+       ev B.EvalBRelease.
+     (* Pull Pull *)
+     eapply EvalsB.EvalsB1.
+       ev B.EvalBPullOk.
+     (* Push Pull *)
+     eapply EvalsB.EvalsB1.
+       ev B.EvalBUpdate.
+     (* Push Push *)
+     eapply EvalsB.EvalsB1.
+       ev B.EvalBPush.
+     (* Push Rele *)
+     eapply EvalsB.EvalsB1.
+       ev B.EvalBJump.
+     (* Push Pull *)
+     eapply EvalsB.EvalsB1.
+       ev B.EvalBUpdate.
+     (* Push Pull *)
+     eapply EvalsB.EvalsB1.
+       ev B.EvalBPush.
+     (* Rele Pull *)
+     eapply EvalsB.EvalsB1.
+       ev B.EvalBRelease.
+
+     applys_eq EvalsB.EvalsB0 0; !fequals.
+      fequals; extensionality c; destruct c;
+        repeat !destruct (EqDec_C); !tryfalse.
+
+       extensionality c;
+       !unfolds update.
+        simpls.
+        destruct c;
+        repeat !destruct (EqDec_C); !tryfalse;
+        repeat !destruct (FT.ScalarVarEqDec_V); tryfalse.
+    Qed.
+
+    (* XXX need to add 'priority' to fusion algorithm, so HaveValue Pull > NoValue Pull,
+      so that evaluation order for above is more natural
+     *)
+
   End Eg1.
 End Eg.
