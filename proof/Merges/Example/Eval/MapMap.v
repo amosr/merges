@@ -11,7 +11,49 @@ Require Import Coq.Lists.List.
 Import ListNotations.
 Set Implicit Arguments.
 Require Import Coq.Logic.FunctionalExtensionality.
+Require Import Coq.Logic.ClassicalDescription.
 
+Module Reachability.
+Section Reachability.
+
+  Variable L : Set.
+  Variable C : Set.
+  Variable V : Set.
+  Variable P : P.Program L C V.
+
+  Let ShitSet := L -> bool.
+
+  Variable EqDec_L : EqDec L.
+
+  Let empty := fun (_ : L) => false.
+
+
+  Fixpoint step (n : nat) (l : L) (s : ShitSet) : ShitSet :=
+  match s l with
+  | true => s
+  | false =>
+    let s' := update _ _ EqDec_L l true s in
+    match n with
+    | 0
+    => s'
+    | S n'
+    => match P.Blocks P l with
+       | B.BlockPull _ _ l' => step n' l' s'
+       | B.BlockRelease _ _ l' => step n' l' s'
+       | B.BlockPush _ _ l' => step n' l' s'
+       | B.BlockUpdate _ _ _ l' => step n' l' s'
+       | B.BlockIf _ _ lz ls => step n' lz (step n' ls s')
+       | B.BlockJump _ _ l' => step n' l' s'
+       end
+    end
+  end.
+
+  Definition reach (n : nat) := step n (P.Init P) empty.
+
+  Definition FiniteReachable := exists n, reach n = reach (S n).
+
+End Reachability.
+End Reachability.
 
 Inductive C := C1 | C2 | C3.
 Theorem EqDec_C : EqDec C. decides_equality. Qed.
@@ -29,6 +71,46 @@ Definition P' := r P2 P1 EqDec_C.
   so that evaluation order for above is more natural
   for now, fuse "P2 P1" instead of "P1 P2" to force order.
  *)
+
+Theorem EqDec_All A (n m : A) : { n = m } + {n <> m}.
+Proof.
+ !destruct (excluded_middle_informative (n = m)).
+Qed.
+
+Definition EqDec_L := @EqDec_All (F.L' C Map.L Map.L).
+
+
+Theorem ReachP1 : Reachability.FiniteReachable P1 (@EqDec_All Map.L).
+Proof.
+ unfolds.
+ exists 2.
+  unfolds.
+  extensionality x.
+  simpl.
+  unfolds update.
+  matchmaker_goal; !tryfalse.
+Qed.
+
+Theorem ReachP1_L'Pull: Reachability.reach P1 (@EqDec_All Map.L) 2 Map.L'Pull = true.
+Proof.
+  unfolds Reachability.reach.
+  simpl.
+  unfolds update.
+  matchmaker_goal; !tryfalse.
+Qed.
+
+(*
+Theorem ReachP' : Reachability.FiniteReachable P' EqDec_L.
+Proof.
+ unfolds.
+ exists 1.
+  unfolds.
+  simpl.
+  extensionality x.
+  unfolds update.
+  matchmaker_goal; !tryfalse.
+Qed.
+*)
 
 Theorem eval_P'_1':
   exists sh,
