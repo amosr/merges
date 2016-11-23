@@ -51,6 +51,7 @@ Ltac evalsB1 C X :=
     ; funfolds
     ; repeat destruct_t (EqDec C)
     ; !tryfalse
+    ; !tryfalse
       ).
 
 

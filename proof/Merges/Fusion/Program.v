@@ -53,8 +53,7 @@ Section Program.
   Next Obligation.
     unfolds B.BlocksPreT.
     introv hLbl hEvB.
-   destruct l eqn:HL; destruct l'.
-   !destruct v; destruct v0
+   !destruct l eqn:HL; destruct l'
     ; try solve [!unfolds F.LabelPre]
     ; try solve [inverts hEvB; tryfalse].
 
@@ -89,9 +88,9 @@ Section Program.
     applys_eq hEvB 0; fequals.
  Qed.
  Next Obligation.
-  unfolds F.Evalish.
   jauto_set;
   try apply B.EvalBs0;
-  !jauto_set.
+  !jauto_set;
+  !matchmaker_goal.
  Qed.
 End Program.

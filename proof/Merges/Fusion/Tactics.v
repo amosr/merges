@@ -38,8 +38,8 @@ Section Tactics.
 
   Definition isValid (l : F.L' C L1 L2) : Prop :=
     match l with
-    | F.LX _ _ _ _ F.Valid => True
-    | F.LX _ _ _ _ F.INVALID => False
+    | F.LX _ _ _ _ => True
+    | F.L'INVALID _ _ _ => False
     end.
 
 
@@ -50,7 +50,6 @@ Section Tactics.
     hint EqDec_C.
     decides_equality.
   Qed.
-
 
   Definition EvalStep b :=
     forall h h' sh sh' l l',
@@ -71,8 +70,7 @@ Section Tactics.
   Proof.
       unfolds F.StreamType.
       unfolds F.LabelPre.
-      unfolds F.Evalish.
-      destruct l. !destruct v.
+      !destruct l.
       introv hStrmT hPre.
       destruct hPre as [hPre1 hPre2].
       destruct hPre1 as [hEv1 hSv1].
@@ -194,18 +192,15 @@ End Tactics.
     unfolds Tactics.isValid;
     unfolds Base.Fuse.Blocks;
     unfolds Base.Fuse.LabelPre;
-    unfolds Base.Fuse.Evalish;
-    unfolds Base.Fuse.makeBlock;
-    unfolds Base.Fuse.stateUpdate;
     unfolds update.
 
   Ltac EvalStep_intros :=
     unfolds Tactics.EvalStep;
     unfolds Tactics.isValid;
     intros h h' sh sh' l l' hValidl hValidl' hBlockEq hLabelPre hEvalB;
-    destruct l as [l1 l2 s1 s2 v];
-    destruct l' as [l'1 l'2 s'1 s'2 v'];
-    destruct v; destruct v'; tryfalse;
+    destruct l as [l1 l2 s1 s2 | ];
+    destruct l' as [l'1 l'2 s'1 s'2 | ];
+    tryfalse;
     inverts hEvalB; tryfalse;
     try solve [!apply Tactics.EvalStep_Ignore];
     destruct hLabelPre as [hLbl1 hLbl2];
@@ -216,7 +211,7 @@ End Tactics.
   Ltac EvalStep_Rule' Eval Fwd :=
     let sv := fresh "sv"
          in !applys_eq Eval 2 3
-          ; unfolds Base.Fuse.stateUpdate; unfolds update
+          ; unfolds update
           ; extensionality sv
           ; try forwards: Fwd sv
           ; matchmaker_goal'

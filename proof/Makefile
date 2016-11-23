@@ -25,7 +25,7 @@ proof: $(root)
 # Start the Coq ide
 .PHONY: start
 start: 
-	coqide -R Merges -as Merges 2>/dev/null &
+	coqide -R Merges Merges 2>/dev/null &
 
 # Build dependencies for Coq proof scripts.
 .PHONY: deps
@@ -41,7 +41,7 @@ src_coq_vo	= $(patsubst %.v,%.vo,$(src_coq_v))
 	
 make/proof.deps : $(src_coq_v)
 	@echo "* Building proof dependencies"
-	@$(COQDEP) -R Merges -as Merges $(src_coq_v) > make/proof.deps
+	@$(COQDEP) -R Merges Merges $(src_coq_v) > make/proof.deps
 	@cp make/proof.deps make/proof.deps.inc
 
 
