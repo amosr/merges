@@ -30,6 +30,7 @@ Section Proof.
 
   Variable EqDec_C : EqDec C.
 
+
   Theorem EvalBlockUpdate pV pF pL:
    FT.EvalStep P1 P2 EqDec_C
     (B.BlockUpdate _ pV pF pL).
@@ -37,20 +38,20 @@ Section Proof.
     EvalStep_intros.
     EvalStep_unfold_all.
     jauto_set.
+    Optimize Proof.
       (* EvalBs P1 *)
       - matchmaker hBlockEq; inject_all.
 
         all: try EvalStep_Rule hEv1 hSv1.
-        all: !eapply B.EvalBs1.
+        all: eapply B.EvalBs1; eauto.
         all: try EvalStep_Rule B.EvalBUpdate hSv1.
 
-        all: try solve
-          [ EvalStep_Rule' B.EvalBPullOk hSv1
-          ;
-        destruct (s1 sv); tryfalse;
-        destruct (h' sv); jauto_set; tryfalse;
-        substs; simpls; fequals; !rewrite plus_0_r
-          ].
+
+        all: EvalStep_Rule' B.EvalBPullOk hSv1
+           ; destruct (s1 sv); tryfalse
+           ; destruct (h' sv); jauto_set; tryfalse
+           ; substs; simpls; fequals; rewrite plus_0_r
+           ; eauto.
 
       (* Sv P1 *)
       - EvalStep_Invariant hSv1 hBlockEq.
@@ -68,13 +69,11 @@ Section Proof.
         all: !eapply B.EvalBs1.
         all: try EvalStep_Rule B.EvalBUpdate hSv2.
 
-        all: try solve
-          [ EvalStep_Rule' B.EvalBPullOk hSv2
-          ;
-        destruct (s2 sv); tryfalse;
-        destruct (h' sv); jauto_set; tryfalse;
-        substs; simpls; fequals; !rewrite plus_0_r
-          ].
+        all: EvalStep_Rule' B.EvalBPullOk hSv2
+           ; destruct (s2 sv); tryfalse
+           ; destruct (h' sv); jauto_set; tryfalse
+           ; substs; simpls; fequals; rewrite plus_0_r
+           ; eauto.
 
       (* Sv P2 *)
       - EvalStep_Invariant hSv2 hBlockEq.

@@ -210,13 +210,15 @@ End Tactics.
 
   Ltac EvalStep_Rule' Eval Fwd :=
     let sv := fresh "sv"
-         in !applys_eq Eval 2 3
+         in applys_eq Eval 2 3
+          ; eauto
           ; unfolds update
           ; extensionality sv
           ; try forwards: Fwd sv
           ; matchmaker_goal'
           ; simpl
-          ; !subst
+          ; subst
+          ; eauto
           .
 
   Ltac EvalStep_Rule Eval Fwd :=
@@ -230,6 +232,7 @@ End Tactics.
       ; inject_all
       ; matchmaker_goal'
       ; inject_all
-      ; !jauto_set
+      ; jauto_set
+      ; eauto
       ; intros
       ; tryfalse.

@@ -3,7 +3,11 @@
 # Coq binaries to use when building
 COQDEP		= coqdep
 COQC		= coqc
+COQIDE		= coqide
 THREADS		= 16
+
+COQARGS		= -R Merges Merges
+# COQARGS		= -R Merges Merges -R sophist/src Sophist -I sophist/src
 
 
 # -- Roots ----------------------------------------------------------
@@ -25,7 +29,7 @@ proof: $(root)
 # Start the Coq ide
 .PHONY: start
 start: 
-	coqide -R Merges Merges 2>/dev/null &
+	$(COQIDE) $(COQARGS) 2>/dev/null &
 
 # Build dependencies for Coq proof scripts.
 .PHONY: deps
@@ -58,7 +62,7 @@ clean :
 # Rules 
 %.vo %.glob : %.v
 	@echo "* Checking $<"
-	@$(COQC) -R Merges Merges $<
+	@$(COQC) $(COQARGS) $<
 
 
 # Include the dependencies.

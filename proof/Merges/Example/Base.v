@@ -68,3 +68,8 @@ Ltac evalsB0 C V
    ; tryfalse
    ; jauto.
 
+Ltac decide_equality_simpl
+  := let a := fresh "a"
+  in let b := fresh "b"
+  in intros a b; destruct a; destruct b;
+     try solve [!left | right; discriminate].

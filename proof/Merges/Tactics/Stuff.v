@@ -151,8 +151,7 @@ in remember A as x eqn:Heqx; destruct x; substs; try rewrite <- Heqx in *; tryfa
  ; try matchmaker Heqx
 end.
 
-Ltac matchmaker_goal' :=
-          !!repeat
+Ltac matchmaker_goal' := repeat
          match goal with
         | [ |- context [match ?A with | _ => _ end] ]
         => let x    := fresh "scrut_"
@@ -160,6 +159,7 @@ Ltac matchmaker_goal' :=
         in remember A as x eqn:Heqx; destruct x
          ; try matchmaker Heqx
          ; try rewrite <- Heqx in *; tryfalse
-        end.
+        end
+      ; eauto.
 
 
